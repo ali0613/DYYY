@@ -7891,12 +7891,16 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
-// 隐藏相机定位
+// 隐藏相机定位 / 隐藏模板徽标
 %hook AWETemplateCommonView
 - (void)layoutSubviews {
     %orig;
     if (DYYYGetBool(@"DYYYHideCameraLocation")) {
         [self removeFromSuperview];
+        return;
+    }
+    if (DYYYGetBool(@"DYYYHideTemplateBadge")) {
+        self.hidden = YES;
     }
 }
 %end
@@ -9379,17 +9383,6 @@ static NSHashTable *processedParentViews = nil;
 // 隐藏模板徽标（作者名上方的「剪映 | 模板名」「拍同款 | 模板名」等来源标签）
 // 三个候选类都做上，开关关着时完全不生效；类不存在时 Logos 自动跳过
 %hook AWEFeedTemplateAnchorView
-
-- (void)layoutSubviews {
-	%orig;
-	if (DYYYGetBool(@"DYYYHideTemplateBadge")) {
-		self.hidden = YES;
-	}
-}
-
-%end
-
-%hook AWETemplateCommonView
 
 - (void)layoutSubviews {
 	%orig;
