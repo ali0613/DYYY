@@ -4813,6 +4813,14 @@ static BOOL isGestureActive = NO;
         }
     }
 
+    // 隐藏模板徽标（作者名上方的「剪映 | 模板名」「拍同款 | 模板名」等来源标签）
+    // 只在文字变化时做一次前缀判断，不遍历视图树、不动热方法
+    if (DYYYGetBool(@"DYYYHideTemplateBadge") && text.length > 0 && text.length < 60) {
+        if ([text hasPrefix:@"剪映"] || [text hasPrefix:@"拍同款"]) {
+            superview.hidden = YES;   // 徽标盒子
+        }
+    }
+
     %orig(text);
 }
 %end
