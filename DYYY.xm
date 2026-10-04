@@ -9427,13 +9427,9 @@ static NSHashTable *processedParentViews = nil;
 
 - (void)layoutSubviews {
 	%orig;
-	if (DYYYGetBool(@"DYYYHideTemplateBadge")) {
-		[self dyyy_hideIfTemplateBadge];
+	if (!DYYYGetBool(@"DYYYHideTemplateBadge")) {
+		return;
 	}
-}
-
-%new
-- (void)dyyy_hideIfTemplateBadge {
 	// 只在这个容器内部浅层找文字（子视图很少，开销可忽略）
 	NSMutableArray *stack = [NSMutableArray arrayWithObject:self];
 	int guard = 0;
@@ -9457,7 +9453,9 @@ static NSHashTable *processedParentViews = nil;
 					return;
 				}
 			}
-			if (sub.subviews.count > 0) [stack addObject:sub];
+			if (sub.subviews.count > 0) {
+				[stack addObject:sub];
+			}
 		}
 	}
 }
