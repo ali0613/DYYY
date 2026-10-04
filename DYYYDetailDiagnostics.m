@@ -164,6 +164,128 @@ static NSString *gDYYYDiagFilePath = nil;
     return names.count > 0 ? [names componentsJoinedByString:@" < "] : @"(未找到控制器)";
 }
 
+#pragma mark - 详情页判定
+
++ (BOOL)isInDetailPageFromView:(UIView *)view {
+    UIResponder *responder = view;
+    NSInteger guard = 0;
+    while (responder && guard < 40) {
+        NSString *name = NSStringFromClass([responder class]);
+        if ([name containsString:@"AWEAwemeDetail"] || [name containsString:@"AWEMixVideoPanelDetail"]) {
+            return YES;
+        }
+        responder = responder.nextResponder;
+        guard++;
+    }
+    return NO;
+}
+
+#pragma mark - 结构快照
+
++ (void)captureStructureFromView:(UIView *)root tag:(NSString *)tag note:(NSString *)note {
+    if (![self isEnabled] || !root || tag.length == 0) {
+        return;
+    }
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+          [self captureStructureFromView:root tag:tag note:note];
+        });
+        return;
+    }
+    if (!root.window || root.hidden || root.frame.size.height < 1) {
+        return;
+    }
+
+    [self prepareIfNeeded];
+    NSDate *now = [NSDate date];
+    NSDate *lastCapture = gDYYYDiagLastCapture[tag];
+    if (lastCapture && [now timeIntervalSinceDate:lastCapture] < kDYYYDiagSameTagInterval) {
+        return;
+    }
+    gDYYYDiagLastCapture[tag] = now;
+
+    NSMutableArray<NSString *> *lines = [NSMutableArray array];
+    NSInteger budget = 220; // 行数上限，避免把剪贴板塞满
+    [lines addObject:[NSString stringWithFormat:@"[%@] 结构快照 %@ %@", [gDYYYDiagFormatter stringFromDate:now], tag, note ?: @""]];
+    [self appendDescriptionOfView:root depth:0 maxDepth:4 lines:lines budget:&budget];
+
+    if (gDYYYDiagBuffer.length == 0) {
+        [gDYYYDiagBuffer appendString:[self sessionHeader]];
+    }
+    [gDYYYDiagBuffer appendString:[lines componentsJoinedByString:@"\n"]];
+    [gDYYYDiagBuffer appendString:@"\n\n"];
+    [self trimBufferIfNeeded];
+    [self persistWithToastAllowed:YES];
+}
+
+/** 递归描述视图结构；跳过不可见与过小的视图，行数超限即停 */
++ (void)appendDescriptionOfView:(UIView *)view
+                          depth:(NSInteger)depth
+                       maxDepth:(NSInteger)maxDepth
+                          lines:(NSMutableArray<NSString *> *)lines
+                         budget:(NSInteger *)budget {
+    if (*budget <= 0) {
+        return;
+    }
+    CGRect frame = view.frame;
+    if (view.hidden || view.alpha < 0.05f || frame.size.width < 4 || frame.size.height < 4) {
+        return;
+    }
+
+    NSMutableString *line = [NSMutableString string];
+    [line appendString:[@"" stringByPaddingToLength:(NSUInteger)(depth * 2) withString:@" " startingAtIndex:0]];
+    [line appendFormat:@"%@ {{%.0f,%.0f},{%.0f,%.0f}}", NSStringFromClass([view class]), frame.origin.x, frame.origin.y,
+                      frame.size.width, frame.size.height];
+    if (view.alpha < 0.99f) {
+        [line appendFormat:@" alpha=%.2f", view.alpha];
+    }
+    if ([view isKindOfClass:[UIScrollView class]]) {
+        UIScrollView *scroll = (UIScrollView *)view;
+        [line appendFormat:@" contentSize={%.0f,%.0f} offset={%.0f,%.0f} inset=%.0f",
+                           scroll.contentSize.width, scroll.contentSize.height, scroll.contentOffset.x,
+                           scroll.contentOffset.y, scroll.contentInset.top];
+    }
+    [lines addObject:line];
+    (*budget)--;
+
+    if ([view isKindOfClass:[UITableView class]]) {
+        UITableView *table = (UITableView *)view;
+        NSInteger sectionCount = [table numberOfSections];
+        for (NSInteger section = 0; section < sectionCount && *budget > 0; section++) {
+            NSInteger rows = [table numberOfRowsInSection:section];
+            [lines addObject:[NSString stringWithFormat:@"%@  section %ld: %ld 行",
+                                                        [@"" stringByPaddingToLength:(NSUInteger)((depth + 1) * 2)
+                                                                          withString:@" "
+                                                                     startingAtIndex:0],
+                                                        (long)section, (long)rows]];
+            (*budget)--;
+        }
+        for (UITableViewCell *cell in table.visibleCells) {
+            if (*budget <= 0) {
+                break;
+            }
+            [lines addObject:[NSString stringWithFormat:@"%@  [cell] %@ {{%.0f,%.0f},{%.0f,%.0f}}",
+                                                        [@"" stringByPaddingToLength:(NSUInteger)((depth + 1) * 2)
+                                                                          withString:@" "
+                                                                     startingAtIndex:0],
+                                                        NSStringFromClass([cell class]), cell.frame.origin.x,
+                                                        cell.frame.origin.y, cell.frame.size.width,
+                                                        cell.frame.size.height]];
+            (*budget)--;
+        }
+    }
+
+    if (depth >= maxDepth) {
+        return;
+    }
+    for (UIView *subview in view.subviews) {
+        [self appendDescriptionOfView:subview depth:depth + 1 maxDepth:maxDepth lines:lines budget:budget];
+        if (*budget <= 0) {
+            return;
+        }
+    }
+}
+
 #pragma mark - 对外查询 / 重置
 
 + (NSString *)collectedText {

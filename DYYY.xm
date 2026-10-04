@@ -11519,6 +11519,13 @@ static Class tabBarButtonClass = nil;
                                           @"底栏高度原值" : @(originalTabBarHeight)
                                       }
                                          view:self.view];
+
+        if ([DYYYDetailDiagnostics isInDetailPageFromView:self.view]) {
+            __weak UIView *diagWeakInteraction = self.view;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+              [DYYYDetailDiagnostics captureStructureFromView:diagWeakInteraction tag:@"详情页结构-交互层" note:@"+0.4s"];
+            });
+        }
     }
 
     if (self.view.window && !self.view.hidden) {
@@ -11792,6 +11799,13 @@ static Class tabBarButtonClass = nil;
                                           @"底栏高度原值" : @(originalTabBarHeight)
                                       }
                                          view:diagContentView];
+
+        if ([DYYYDetailDiagnostics isInDetailPageFromView:self.view]) {
+            __weak UIView *diagWeakPlayer = self.view;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+              [DYYYDetailDiagnostics captureStructureFromView:diagWeakPlayer tag:@"详情页结构-播放器" note:@"+0.4s"];
+            });
+        }
     }
     if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         UIView *contentView = self.contentView;
@@ -12755,6 +12769,16 @@ static Class TagViewClass = nil;
                                           @"底栏高度原值" : @(originalTabBarHeight)
                                       }
                                          view:self];
+
+        if ([DYYYDetailDiagnostics isInDetailPageFromView:self]) {
+            __weak UIView *diagWeakTable = self;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+              [DYYYDetailDiagnostics captureStructureFromView:diagWeakTable tag:@"详情页结构-表格" note:@"+0.3s"];
+            });
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+              [DYYYDetailDiagnostics captureStructureFromView:diagWeakTable tag:@"详情页结构-表格" note:@"+2.0s"];
+            });
+        }
     }
 
     %orig(frame);

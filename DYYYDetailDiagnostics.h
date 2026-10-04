@@ -32,6 +32,20 @@ NS_ASSUME_NONNULL_BEGIN
 /** 当前已收集的全部文本 */
 + (NSString *)collectedText;
 
+/**
+ * 判断视图是否处在「作品详情页」里（响应者链上出现 AWEAwemeDetail / AWEMixVideoPanelDetail）。
+ * 详情页本身没有首页底栏，这一点是后续修正高度补偿的判定依据。
+ */
++ (BOOL)isInDetailPageFromView:(nullable UIView *)view;
+
+/**
+ * 采集一次视图结构快照（用于看清视频框 / cell / 容器各自的实际高度）。
+ * @param root 结构根视图（例如详情页表格）
+ * @param tag 采集点标识
+ * @param note 附加说明
+ */
++ (void)captureStructureFromView:(nullable UIView *)root tag:(NSString *)tag note:(nullable NSString *)note;
+
 /** 清空缓冲并删除落盘文件 */
 + (void)reset;
 
