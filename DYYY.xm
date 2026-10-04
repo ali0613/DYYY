@@ -11601,6 +11601,12 @@ static Class tabBarButtonClass = nil;
         }
     }
 
+    // 作品详情页自身没有首页底栏（它是被 push 进底栏控制器的），再减一次底栏高度会凭空少 83pt，
+    // 并且和表格补整后的高度打架 → 详情页一律按满高处理。
+    if (!useFullHeight && [DYYYUtils isInsideDetailPageFromView:self.view]) {
+        useFullHeight = YES;
+    }
+
     if (useFullHeight) {
         frame.size.height = superviewHeight;
     } else {
@@ -11805,6 +11811,21 @@ static Class tabBarButtonClass = nil;
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
               [DYYYDetailDiagnostics captureStructureFromView:diagWeakPlayer tag:@"详情页结构-播放器" note:@"+0.4s"];
             });
+        }
+    }
+    // 详情页：抖音按"有底栏"给出 843，而所在 cell 会被表格补整到一屏（926），这里把差的这一档补回来。
+    // 比较对象必须是播放器视图自己的 superview——contentView 与 contentView.superview 在详情页里
+    // 都是被减过的值，下面那段通用逻辑永远不成立。
+    if (DYYYGetBool(@"DYYYEnableFullScreen") && [DYYYUtils isInsideDetailPageFromView:self.view]) {
+        UIView *playerView = self.view;
+        UIView *playerSuperview = playerView.superview;
+        if (playerSuperview) {
+            CGFloat superHeight = playerSuperview.frame.size.height;
+            if (superHeight > 0 && fabs(superHeight - playerView.frame.size.height - gCurrentTabBarHeight) < 1.0) {
+                CGRect playerFrame = playerView.frame;
+                playerFrame.size.height = superHeight;
+                playerView.frame = playerFrame;
+            }
         }
     }
     if (DYYYGetBool(@"DYYYEnableFullScreen")) {
@@ -12781,6 +12802,23 @@ static Class TagViewClass = nil;
         }
     }
 
+    %orig(frame);
+}
+
+%end
+
+%hook AWEAwemeDetailTableViewCell
+
+- (void)setFrame:(CGRect)frame {
+    // 详情页开启首页全屏后表格被补整到一屏（926），而抖音给 cell 的高度仍是"减过底栏"的 843；
+    // 把正好差一档的 cell 补到与所在表格一致，否则当前这一屏会比其它屏少 83pt（正文下面那条缝）。
+    if (DYYYGetBool(@"DYYYEnableFullScreen") && [DYYYUtils isInsideDetailPageFromView:self]) {
+        UIView *pageContainer = self.superview;
+        CGFloat pageHeight = pageContainer ? pageContainer.frame.size.height : 0;
+        if (pageHeight > 0 && fabs(pageHeight - frame.size.height - gCurrentTabBarHeight) < 1.0) {
+            frame.size.height = pageHeight;
+        }
+    }
     %orig(frame);
 }
 

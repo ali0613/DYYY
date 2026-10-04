@@ -167,17 +167,8 @@ static NSString *gDYYYDiagFilePath = nil;
 #pragma mark - 详情页判定
 
 + (BOOL)isInDetailPageFromView:(UIView *)view {
-    UIResponder *responder = view;
-    NSInteger guard = 0;
-    while (responder && guard < 40) {
-        NSString *name = NSStringFromClass([responder class]);
-        if ([name containsString:@"AWEAwemeDetail"] || [name containsString:@"AWEMixVideoPanelDetail"]) {
-            return YES;
-        }
-        responder = responder.nextResponder;
-        guard++;
-    }
-    return NO;
+    // 判定逻辑统一放在 DYYYUtils，这里只是转发，避免两处实现漂移
+    return [DYYYUtils isInsideDetailPageFromView:view];
 }
 
 #pragma mark - 结构快照
