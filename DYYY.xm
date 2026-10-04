@@ -12810,13 +12810,14 @@ static Class TagViewClass = nil;
 %hook AWEAwemeDetailTableViewCell
 
 - (void)setFrame:(CGRect)frame {
-    // 详情页开启首页全屏后表格被补整到一屏（926），而抖音给 cell 的高度仍是"减过底栏"的 843；
-    // 把正好差一档的 cell 补到与所在表格一致，否则当前这一屏会比其它屏少 83pt（正文下面那条缝）。
+    // 抖音自己的分页网格是整屏（926），但视频那一屏的 cell 只给"屏幕 − 底栏"（843），
+    // 于是每个视频页都比页网格矮 83pt（正文下面那条缝就出在视频页脚下）。
+    // 表格高度本身受 autolayout 约束管理，补它的 frame 会被下一帧改回去，
+    // 所以这里以屏幕高度为基准补齐；评论页本来就是 926，条件不成立，不会被动到。
     if (DYYYGetBool(@"DYYYEnableFullScreen") && [DYYYUtils isInsideDetailPageFromView:self]) {
-        UIView *pageContainer = self.superview;
-        CGFloat pageHeight = pageContainer ? pageContainer.frame.size.height : 0;
-        if (pageHeight > 0 && fabs(pageHeight - frame.size.height - gCurrentTabBarHeight) < 1.0) {
-            frame.size.height = pageHeight;
+        CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+        if (screenHeight > 0 && fabs(frame.size.height - (screenHeight - gCurrentTabBarHeight)) < 1.0) {
+            frame.size.height = screenHeight;
         }
     }
     %orig(frame);
