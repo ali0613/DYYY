@@ -22,6 +22,8 @@ static NSString *const kDYYYLiveSwitchKey = @"DYYYDetailDiag";
 static NSString *const kDYYYLiveParamPrefix = @"DYYYLiveParam.";
 
 static int gDYYYListenFD = -1;
+static NSInteger gDYYYListenPort = 0;
+static dispatch_source_t gDYYYListenSource = NULL; // 必须持有：dispatch source 不会被自动保活
 static dispatch_queue_t gDYYYLiveQueue = NULL;
 static BOOL gDYYYLiveStarted = NO;
 static NSInteger gDYYYCellMode = -1;
@@ -108,32 +110,37 @@ static CGFloat gDYYYExtra = CGFLOAT_MAX;
 
     gDYYYLiveQueue = dispatch_queue_create("com.dyyy.livechannel", DISPATCH_QUEUE_SERIAL);
 
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) {
+    // 8899 起，往后找 10 个端口，避免与应用自身服务冲突
+    for (NSInteger port = kDYYYLivePort; port < kDYYYLivePort + 10; port++) {
+        int fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (fd < 0) {
+            return;
+        }
+        int on = 1;
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
+        struct sockaddr_in addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons((uint16_t)port);
+        addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+        if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0 || listen(fd, 8) != 0) {
+            close(fd);
+            continue;
+        }
+
+        gDYYYListenFD = fd;
+        gDYYYListenPort = port;
+        gDYYYListenSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, (uintptr_t)fd, 0, gDYYYLiveQueue);
+        dispatch_source_set_event_handler(gDYYYListenSource, ^{
+          [self acceptPendingConnection];
+        });
+        dispatch_resume(gDYYYListenSource);
+        NSLog(@"[DYYY] live channel 已监听 :%ld", (long)port);
         return;
     }
-    int on = 1;
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons((uint16_t)kDYYYLivePort);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0 || listen(fd, 8) != 0) {
-        close(fd);
-        NSLog(@"[DYYY] live channel 启动失败（端口 %ld 可能被占用）", (long)kDYYYLivePort);
-        return;
-    }
-    gDYYYListenFD = fd;
-
-    dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, (uintptr_t)fd, 0, gDYYYLiveQueue);
-    dispatch_source_set_event_handler(source, ^{
-      [self acceptPendingConnection];
-    });
-    dispatch_resume(source);
-    NSLog(@"[DYYY] live channel 已监听 :%ld", (long)kDYYYLivePort);
+    NSLog(@"[DYYY] live channel 启动失败：%ld-%ld 全部被占用", (long)kDYYYLivePort, (long)(kDYYYLivePort + 9));
 }
 
 #pragma mark - 连接处理
@@ -162,6 +169,7 @@ static CGFloat gDYYYExtra = CGFLOAT_MAX;
         NSString *path = parts.count > 1 ? parts[1] : @"/";
 
         NSString *body = [self responseBodyForPath:path];
+        NSLog(@"[DYYY] live %@ -> %lu 字节", path, (unsigned long)body.length);
         reply = [NSString stringWithFormat:@"HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\n"
                                            @"Content-Length: %lu\r\nConnection: close\r\n\r\n%@",
                                            (unsigned long)[body lengthOfBytesUsingEncoding:NSUTF8StringEncoding], body];
