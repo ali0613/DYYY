@@ -151,3 +151,34 @@ wsl -d Ubuntu22 -- python3 -c 'data=open("/tmp/dyyy-verify/Library/MobileSubstra
 这样既保留了本节"详情页恢复抖音原样"的目标，又消除了闪退；该 hook 在其它场景（非详情页）行为不变。
 （逻辑上它本就只在详情页生效，所以对详情页放行 = 该场景下不再改动抖音的原生布局，与本节目标一致。）
 
+## 九、硬规则：装到设备上的包必须来自 CI（macOS 工具链）
+
+本机 WSL 的 Linux clang 产出的是**另一种 arm64e ABI 变体**——构建日志里长期挂着这条警告，
+之前被当成噪音忽略了：
+
+```
+ld: warning: object file … was built with an incompatible arm64e ABI compiler
+```
+
+抖音的 Swift 代码在 arm64e 上重度依赖指针签名（pointer authentication），ABI 变体不匹配会让
+Swift 侧拿到类型错误的对象，表现为打开图文/动态图帖子时：
+
+```
+EXC_BREAKPOINT (SIGTRAP) → libswiftCore._assertionFailure → _bridgeCocoaString(_:)
+→ String.init(_cocoaString:) → AwemeCore
+```
+
+**结论（务必遵守）**：
+
+- 本地 `scripts/build.sh` 的产物**只用于编译检查**（语法/链接是否通过），**不要装到设备上**
+- 需要装设备验证时走 GitHub Actions 的 `build deb` 工作流（macOS runner，与上游发布版同款工具链）：
+  - 手动触发：`POST /repos/ali0613/DYYY/actions/workflows/build.yml/dispatches`，body `{"ref":"main"}`
+  - 产物 zip 内含三种 scheme 的 deb：`…-rootful.deb` / `…-rootless.deb` / `…-arm64e-roothide.deb`
+  - 下载产物 zip 时注意：GitHub 会 302 跳到 Blob 存储，**重定向请求不能带 Authorization 头**，否则 401
+- 对照版本：上游 `Wtrwx/DYYY` 的 `DYYY_2.2-9#1687`（提交 `6bdc7c3`）与上游 `main` **是同一个提交**，
+  可作为"能用"基准；凡是"上游/CI 构建正常、本地构建崩"的现象，先查上面那条 ABI 警告
+
+> 另：roothide 装包时会把 `Library/...` 落到真实越狱根
+> `/var/containers/Bundle/Application/.jbroot-<systemhook 后缀>/Library/MobileSubstrate/DynamicLibraries/`；
+> 用同名 `.disabled` 后缀可临时停用某个 dylib（排查是否由 tweak 引起时很好用）。
+
