@@ -7,8 +7,10 @@ zero_sha="0000000000000000000000000000000000000000"
 is_direct_build_path() {
     local path=$1
 
+    # compat/* 是本分支新增的工具链垫片目录（会被编进 tweak），改动必须触发构建；
+    # 下面那条「根目录源码后缀」判定只看无斜杠的路径，子目录会被漏掉。
     case "$path" in
-        DYYY.plist|control|Resources/*|layout/*)
+        DYYY.plist|control|Resources/*|layout/*|compat/*)
             return 0
             ;;
     esac
