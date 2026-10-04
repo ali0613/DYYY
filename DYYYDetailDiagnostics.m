@@ -8,6 +8,7 @@
 
 #import "DYYYDetailDiagnostics.h"
 #import "AwemeHeaders.h"
+#import "DYYYLiveChannel.h"
 #import "DYYYUtils.h"
 
 static NSString *const kDYYYDetailDiagnosticsSwitchKey = @"DYYYDetailDiag";
@@ -309,6 +310,9 @@ static NSString *gDYYYDiagFilePath = nil;
           documents = NSTemporaryDirectory();
       }
       gDYYYDiagFilePath = [[documents stringByAppendingPathComponent:@"DYYY"] stringByAppendingPathComponent:@"详情页诊断.txt"];
+
+      // 诊断打开时顺带启动实时通道（电脑端可实时读数据、下发补偿参数）
+      [DYYYLiveChannel startIfNeeded];
     });
 }
 

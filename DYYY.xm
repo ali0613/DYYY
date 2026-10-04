@@ -20,6 +20,7 @@
 #import "CityManager.h"
 #import "DYYYBottomAlertView.h"
 #import "DYYYDetailDiagnostics.h"
+#import "DYYYLiveChannel.h"
 #import "DYYYManager.h"
 
 #import "AWMSafeDispatchTimer.h"
@@ -11602,8 +11603,8 @@ static Class tabBarButtonClass = nil;
     }
 
     // 作品详情页自身没有首页底栏（它是被 push 进底栏控制器的），再减一次底栏高度会凭空少 83pt，
-    // 并且和表格补整后的高度打架 → 详情页一律按满高处理。
-    if (!useFullHeight && [DYYYUtils isInsideDetailPageFromView:self.view]) {
+    // 并且和表格补整后的高度打架 → 详情页一律按满高处理（可由实时通道 overlay 参数临时切回旧逻辑）。
+    if (!useFullHeight && [DYYYUtils isInsideDetailPageFromView:self.view] && [DYYYLiveChannel detailOverlayMode] != 0) {
         useFullHeight = YES;
     }
 
@@ -11815,15 +11816,16 @@ static Class tabBarButtonClass = nil;
     }
     // 详情页：抖音按"有底栏"给出 843，而所在 cell 会被表格补整到一屏（926），这里把差的这一档补回来。
     // 比较对象必须是播放器视图自己的 superview——contentView 与 contentView.superview 在详情页里
-    // 都是被减过的值，下面那段通用逻辑永远不成立。
-    if (DYYYGetBool(@"DYYYEnableFullScreen") && [DYYYUtils isInsideDetailPageFromView:self.view]) {
+    // 都是被减过的值，下面那段通用逻辑永远不成立。player 参数可由实时通道关闭。
+    if (DYYYGetBool(@"DYYYEnableFullScreen") && [DYYYLiveChannel detailPlayerMode] != 0 &&
+        [DYYYUtils isInsideDetailPageFromView:self.view]) {
         UIView *playerView = self.view;
         UIView *playerSuperview = playerView.superview;
         if (playerSuperview) {
-            CGFloat superHeight = playerSuperview.frame.size.height;
-            if (superHeight > 0 && fabs(superHeight - playerView.frame.size.height - gCurrentTabBarHeight) < 1.0) {
+            CGFloat target = playerSuperview.frame.size.height + [DYYYLiveChannel detailExtra];
+            if (target > playerView.frame.size.height + 0.5) {
                 CGRect playerFrame = playerView.frame;
-                playerFrame.size.height = superHeight;
+                playerFrame.size.height = target;
                 playerView.frame = playerFrame;
             }
         }
@@ -12770,7 +12772,7 @@ static Class TagViewClass = nil;
     CGFloat diagIncomingHeight = frame.size.height;
     CGFloat diagScreenHeight = [UIScreen mainScreen].bounds.size.height;
 
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen") && [DYYYLiveChannel detailTablePadMode] != 0) {
         CGFloat screenHeight = diagScreenHeight;
 
         CGFloat remainder = fmod(frame.size.height, screenHeight);
@@ -12810,14 +12812,16 @@ static Class TagViewClass = nil;
 %hook AWEAwemeDetailTableViewCell
 
 - (void)setFrame:(CGRect)frame {
-    // 抖音自己的分页网格是整屏（926），但视频那一屏的 cell 只给"屏幕 − 底栏"（843），
-    // 于是每个视频页都比页网格矮 83pt（正文下面那条缝就出在视频页脚下）。
-    // 表格高度本身受 autolayout 约束管理，补它的 frame 会被下一帧改回去，
-    // 所以这里以屏幕高度为基准补齐；评论页本来就是 926，条件不成立，不会被动到。
-    if (DYYYGetBool(@"DYYYEnableFullScreen") && [DYYYUtils isInsideDetailPageFromView:self]) {
+    // 抖音自己的分页网格是整屏，但视频那一屏的 cell 只给"屏幕 − 底栏"，于是每个视频页都矮一档底栏
+    // （正文下面那条缝就出在视频页脚下）。表格高度受 autolayout 约束管理，补它的 frame 会被下一帧
+    // 改回去，所以这里以屏幕高度为基准补齐；评论页本来就是整屏，条件不成立，不会被动到。
+    // 模式与额外补偿点数由实时通道下发（cellMode：0 关 / 1 按屏幕 / 2 按表格；extra：附加点数）。
+    NSInteger cellMode = [DYYYLiveChannel detailCellMode];
+    if (DYYYGetBool(@"DYYYEnableFullScreen") && cellMode != 0 && [DYYYUtils isInsideDetailPageFromView:self]) {
         CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
-        if (screenHeight > 0 && fabs(frame.size.height - (screenHeight - gCurrentTabBarHeight)) < 1.0) {
-            frame.size.height = screenHeight;
+        CGFloat base = (cellMode == 2) ? (self.superview ? self.superview.frame.size.height : 0) : screenHeight;
+        if (base > 0 && fabs(frame.size.height - (base - gCurrentTabBarHeight)) < 1.0) {
+            frame.size.height = base + [DYYYLiveChannel detailExtra];
         }
     }
     %orig(frame);
