@@ -4813,11 +4813,19 @@ static BOOL isGestureActive = NO;
         }
     }
 
-    // 隐藏模板徽标（作者名上方的「剪映 | 模板名」「拍同款 | 模板名」等来源标签）
-    // 只在文字变化时做一次前缀判断，不遍历视图树、不动热方法
+    // 隐藏模板徽标（作者名上方的「剪映 | 模板名」「拍同款 | 模板名」「N人使用」等来源标签）
+    // 只按文字前缀/后缀匹配，再沿父视图往上把「宽度明显小于屏幕」的容器一并隐藏，
+    // 这样能连徽标盒子、图标、使用人数一起收掉，又不会碰到整屏宽的作者名行。
     if (DYYYGetBool(@"DYYYHideTemplateBadge") && text.length > 0 && text.length < 60) {
-        if ([text hasPrefix:@"剪映"] || [text hasPrefix:@"拍同款"]) {
-            superview.hidden = YES;   // 徽标盒子
+        if ([text hasPrefix:@"剪映"] || [text hasPrefix:@"拍同款"] || [text hasSuffix:@"人使用"]) {
+            CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+            UIView *v = self.superview;
+            for (int i = 0; i < 4 && v; i++) {
+                if (v.bounds.size.width > 0 && v.bounds.size.width < screenWidth * 0.7) {
+                    v.hidden = YES;
+                }
+                v = v.superview;
+            }
         }
     }
 
