@@ -19,6 +19,7 @@
 #import "AwemeHeaders.h"
 #import "CityManager.h"
 #import "DYYYBottomAlertView.h"
+#import "DYYYDetailDiagnostics.h"
 #import "DYYYManager.h"
 
 #import "AWMSafeDispatchTimer.h"
@@ -11506,6 +11507,20 @@ static Class tabBarButtonClass = nil;
 - (void)viewDidLayoutSubviews {
     %orig;
 
+    if ([DYYYDetailDiagnostics isEnabled]) {
+        [DYYYDetailDiagnostics captureWithTag:@"播放交互层 layout"
+                                      context:@{
+                                          @"referString" : self.referString ?: @"(nil)",
+                                          @"view高度" : @(self.view.frame.size.height),
+                                          @"view宽" : @(self.view.frame.size.width),
+                                          @"父视图高度" : @(self.view.superview ? self.view.superview.frame.size.height : -1),
+                                          @"屏幕高度" : @([UIScreen mainScreen].bounds.size.height),
+                                          @"底栏高度G" : @(gCurrentTabBarHeight),
+                                          @"底栏高度原值" : @(originalTabBarHeight)
+                                      }
+                                         view:self.view];
+    }
+
     if (self.view.window && !self.view.hidden) {
         DYYYEnsureFloatSpeedButton(self);
         reloadClearButtonConfiguration();
@@ -11705,6 +11720,18 @@ static Class tabBarButtonClass = nil;
 
 - (void)viewDidLayoutSubviews {
     %orig;
+    if ([DYYYDetailDiagnostics isEnabled]) {
+        UIView *diagContentView = self.contentView;
+        [DYYYDetailDiagnostics captureWithTag:@"播放器容器 layout(feed)"
+                                      context:@{
+                                          @"contentView高度" : @(diagContentView ? diagContentView.frame.size.height : -1),
+                                          @"contentView的父高" : @(diagContentView.superview ? diagContentView.superview.frame.size.height : -1),
+                                          @"屏幕高度" : @([UIScreen mainScreen].bounds.size.height),
+                                          @"底栏高度G" : @(gCurrentTabBarHeight),
+                                          @"底栏高度原值" : @(originalTabBarHeight)
+                                      }
+                                         view:diagContentView];
+    }
     if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         UIView *contentView = self.contentView;
         if (contentView && contentView.superview) {
@@ -11754,6 +11781,18 @@ static Class tabBarButtonClass = nil;
 
 - (void)viewDidLayoutSubviews {
     %orig;
+    if ([DYYYDetailDiagnostics isEnabled]) {
+        UIView *diagContentView = self.contentView;
+        [DYYYDetailDiagnostics captureWithTag:@"播放器容器 layout(merge)"
+                                      context:@{
+                                          @"contentView高度" : @(diagContentView ? diagContentView.frame.size.height : -1),
+                                          @"contentView的父高" : @(diagContentView.superview ? diagContentView.superview.frame.size.height : -1),
+                                          @"屏幕高度" : @([UIScreen mainScreen].bounds.size.height),
+                                          @"底栏高度G" : @(gCurrentTabBarHeight),
+                                          @"底栏高度原值" : @(originalTabBarHeight)
+                                      }
+                                         view:diagContentView];
+    }
     if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         UIView *contentView = self.contentView;
         if (contentView && contentView.superview) {
@@ -11795,6 +11834,18 @@ static Class tabBarButtonClass = nil;
 %hook AWEFeedTableView
 - (void)layoutSubviews {
     %orig;
+
+    if ([DYYYDetailDiagnostics isEnabled]) {
+        [DYYYDetailDiagnostics captureWithTag:@"首页表格 layout"
+                                      context:@{
+                                          @"自身高度" : @(self.frame.size.height),
+                                          @"父视图高度" : @(self.superview ? self.superview.frame.size.height : -1),
+                                          @"屏幕高度" : @([UIScreen mainScreen].bounds.size.height),
+                                          @"底栏高度G" : @(gCurrentTabBarHeight),
+                                          @"底栏高度原值" : @(originalTabBarHeight)
+                                      }
+                                         view:self];
+    }
 
     if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         CGRect frame = self.frame;
@@ -12680,14 +12731,32 @@ static Class TagViewClass = nil;
 %hook AWEAwemeDetailTableView
 
 - (void)setFrame:(CGRect)frame {
+    BOOL diagEnabled = [DYYYDetailDiagnostics isEnabled];
+    CGFloat diagIncomingHeight = frame.size.height;
+    CGFloat diagScreenHeight = [UIScreen mainScreen].bounds.size.height;
+
     if (DYYYGetBool(@"DYYYEnableFullScreen")) {
-        CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+        CGFloat screenHeight = diagScreenHeight;
 
         CGFloat remainder = fmod(frame.size.height, screenHeight);
         if (remainder != 0) {
             frame.size.height += (screenHeight - remainder);
         }
     }
+
+    if (diagEnabled) {
+        [DYYYDetailDiagnostics captureWithTag:@"详情页表格 setFrame"
+                                      context:@{
+                                          @"抖音原始高度" : @(diagIncomingHeight),
+                                          @"补整后高度" : @(frame.size.height),
+                                          @"屏幕高度" : @(diagScreenHeight),
+                                          @"原始高度余数" : @(fmod(diagIncomingHeight, diagScreenHeight)),
+                                          @"底栏高度G" : @(gCurrentTabBarHeight),
+                                          @"底栏高度原值" : @(originalTabBarHeight)
+                                      }
+                                         view:self];
+    }
+
     %orig(frame);
 }
 

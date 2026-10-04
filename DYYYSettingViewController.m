@@ -378,12 +378,15 @@ typedef NS_ENUM(NSInteger, DYYYSettingItemType) { DYYYSettingItemTypeSwitch, DYY
             [DYYYSettingItem itemWithTitle:@"清屏隐藏滑条" key:@"DYYYHideSlider" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"清屏隐藏底栏" key:@"DYYYHideTabBar" type:DYYYSettingItemTypeSwitch],
             [DYYYSettingItem itemWithTitle:@"清屏隐藏倍速按钮" key:@"DYYYHideSpeed" type:DYYYSettingItemTypeSwitch]
+        ],
+        @[
+            [DYYYSettingItem itemWithTitle:@"详情页诊断（临时）" key:@"DYYYDetailDiag" type:DYYYSettingItemTypeSwitch]
         ]
     ];
 }
 
 - (void)setupSectionTitles {
-    self.sectionTitles = [@[ @"基本设置", @"界面设置", @"隐藏设置", @"顶栏移除", @"隐藏面板", @"面板设置", @"功能设置", @"悬浮按钮" ] mutableCopy];
+    self.sectionTitles = [@[ @"基本设置", @"界面设置", @"隐藏设置", @"顶栏移除", @"隐藏面板", @"面板设置", @"功能设置", @"悬浮按钮", @"诊断（临时）" ] mutableCopy];
 }
 
 - (void)setupFooterLabel {
