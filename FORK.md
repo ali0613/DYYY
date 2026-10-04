@@ -135,26 +135,19 @@ wsl -d Ubuntu22 -- python3 -c 'data=open("/tmp/dyyy-verify/Library/MobileSubstra
 
 排查用的诊断开关、实时通道（设备 :8899）与五个运行时补偿参数，都保留在 `feature/detail-fullscreen` 分支上；以后再遇到详情页/全屏布局问题，切回该分支即可继续用（详见该分支的 `DYYYDetailDiagnostics` / `DYYYLiveChannel`）。
 
-## 八、修复：未开启「评论区精确时间」也会闪退（图文/动态图）
+### 补充：这套改动为什么会引发「打开图文/动态图闪退」
 
-**现象**：打开图文（图集）或动态图帖子时，主线程栈溢出闪退（`EXC_BAD_ACCESS` / `KERN_PROTECTION_FAILURE`，栈上是几百层交替的 `DYYY.dylib` 帧 + `-[NSAttributedString enumerateAttribute:]` + `fontDescriptorWithSymbolicTraits:`）；另有一条 `libswiftCore._assertionFailure → _bridgeCocoaString → String.init(_cocoaString:) → AwemeCore` 的 Swift 断言崩溃。两种形态同一个根源。
+实测（对上游同款构建做对照验证）：上游原版打开图文/图集帖子正常，而带上本节两处改动后必崩，崩溃形态是
+`EXC_BREAKPOINT` → `libswiftCore._assertionFailure` → `_bridgeCocoaString(_:)` → `String.init(_cocoaString:)`
+→ `AwemeCore`（栈里**没有** tweak 的帧，属于"改坏了状态、抖音自己的代码炸"）。
 
-**根因**：`DYYYCommentExactTimeGroup` 把两个 hook 挂在抖音的 **Swift 类** `AWECommentSwiftBizUI.CommentInteractionBaseLabel` 上，而 `%init` 在 `%ctor` 里是**无条件执行**的——即使「评论区精确时间」开关是关的，hook 也已经装进抖音：
+成因是上游的 `%hook CommentInputContainerView`（动态绑定到抖音 Swift 类
+`AWECommentInputViewSwiftImpl.CommentInputContainerView`，`-layoutSubviews` 里每次布局都跑）：
+它的隐藏逻辑拿 `[(UIView *)self frame].size.height == gCurrentTabBarHeight` 作判据，依赖"屏幕 − 底栏"的高度；
+而本节把详情页改成**满高**后几何不符，Swift 侧随即踩到类型断言。
 
-| 问题 | 后果 |
-|---|---|
-| 在 Swift 类上替换方法（`-setText:` / `-setFrame:`），调用约定不匹配 | 抖音自己的 Swift 代码拿到类型错误的对象 → `_bridgeCocoaString` 断言闪退 |
-| `-setFrame:` hook 里调 `sizeWithAttributes:`（字体链），而 `-setText:` hook 里又写 `label.frame` | 两个 hook 互相递归 → 主线程栈打穿 |
-
-**修复**（`DYYY.xm`）：
-
-1. `%ctor` 中给这组 `%init` 加开关判断：只有 `DYYYCommentExactTime` 打开时才安装；
-2. **删除 `-setFrame:` hook**（Swift ABI 风险 + 递归源头）；
-3. `-setText:` 增加类型防护（`isKindOfClass:[NSString class]`）与 `objc_setAssociatedObject` 防重入标记。
-
-**判定实验**（复现/验证同类问题的标准手法）：把 `DynamicLibraries/DYYY.dylib` 改名成 `DYYY.dylib.disabled`（roothide 官方的停用方式）后重启 App——崩溃消失即确认由 tweak 引起；测完改回原名即可。注意 roothide 对普通进程隐藏越狱根，真实路径是 `/var/containers/Bundle/Application/.jbroot-<systemhook 后缀>/Library/MobileSubstrate/DynamicLibraries/`。
-
-**以后调试抖音的现成工具**：设备上装 `com.dyyy.fridagadget`（预发布 `gadget-1`）——Frida Gadget 以插件形式注入抖音，电脑端 `frida` 连 `192.168.1.19:27052` 即可实时插桩（**不要**把 hook 挂在每秒成百上千次的热方法上，会把进程拖死，表现为"卡住 + 看门狗 0x8badf00d"；优先挂冷门方法或定时采样线程栈）。
-
-**符号化**：本地 `build.sh` 出的 dSYM 与 deb 同源（发布前用 `dpkg-deb -x` 解包比对 md5 确认），崩溃日志里的 DYYY 偏移可直接译为函数名 + 行号；线上 CI 构建的 dylib 与本地构建布局不同，不能混用。
+处理方式：在 `DYYY.xm` 该 hook 的 `layoutSubviews` 开头加一句
+`if ([DYYYUtils isInsideDetailPageFromView:self]) { return; }`——**详情页直接放行**。
+这样既保留了本节"详情页恢复抖音原样"的目标，又消除了闪退；该 hook 在其它场景（非详情页）行为不变。
+（逻辑上它本就只在详情页生效，所以对详情页放行 = 该场景下不再改动抖音的原生布局，与本节目标一致。）
 
