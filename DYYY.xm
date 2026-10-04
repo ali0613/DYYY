@@ -2739,15 +2739,33 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
 %group DYYYCommentExactTimeGroup
 %hook AWECommentSwiftBizUI_CommentInteractionBaseLabel
 
+// 注意：本组 hook 挂在抖音的 Swift 类上，只应在开关打开时安装（见 %ctor 中的判断）。
+// 另外不要在 Swift 类上 hook -setFrame:：参数会被按错误的调用约定解析，
+// 并且会与 setText: 互相递归直到主线程栈溢出。
+
 - (void)setText:(NSString *)text {
     %orig(text); // 先让系统把文本赋上去
-    
+
     if (!DYYYGetBool(@"DYYYCommentExactTime")) {
         return;
     }
 
+    // 类型防护：Swift 侧可能传进来非 NSString 的对象
+    if (![text isKindOfClass:[NSString class]] || text.length == 0) {
+        return;
+    }
+
     UILabel *label = (UILabel *)self;
-    if (!text || text.length == 0) return;
+    if (![label isKindOfClass:[UILabel class]]) {
+        return;
+    }
+
+    // 防重入：下面会改 frame，可能再次触发本方法
+    static void *kDYYYExactTimeBusyKey = &kDYYYExactTimeBusyKey;
+    if (objc_getAssociatedObject(label, kDYYYExactTimeBusyKey)) {
+        return;
+    }
+    objc_setAssociatedObject(label, kDYYYExactTimeBusyKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
     // --- 1. 拦截翻译文本，将其绝对定位在屏幕右侧 100 像素 ---
     if ([text isEqualToString:@"翻译"] || [text isEqualToString:@"隐藏翻译"]) {
@@ -2756,53 +2774,25 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
         // 重新计算 X 坐标：屏幕宽度 - 100 - 标签自身宽度
         currentFrame.origin.x = screenWidth - 100.0 - currentFrame.size.width;
         label.frame = currentFrame;
+        objc_setAssociatedObject(label, kDYYYExactTimeBusyKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         return;
     }
 
     // --- 2. 拦截时间文本，如果不够宽则扩充宽度 ---
     UIFont *font = label.font;
     if (font) {
-        CGFloat expectedWidth = ceilf([text sizeWithAttributes:@{NSFontAttributeName: font}].width);
+        CGFloat expectedWidth = ceilf([text sizeWithAttributes:@{NSFontAttributeName : font}].width);
         CGRect currentFrame = label.frame;
-        
+
         // 如果当前宽度不够，并且不是尚未初始化的状态（>0），则强行修改并重新赋值
         if (currentFrame.size.width < expectedWidth && currentFrame.size.width > 0) {
             currentFrame.size.width = expectedWidth;
-            label.frame = currentFrame; 
+            label.frame = currentFrame;
             label.clipsToBounds = NO;
         }
     }
-}
 
-- (void)setFrame:(CGRect)frame {
-    if (!DYYYGetBool(@"DYYYCommentExactTime") || ![self respondsToSelector:@selector(text)]) {
-        %orig(frame);
-        return;
-    }
-
-    UILabel *label = (UILabel *)self;
-    NSString *text = label.text;
-
-    if (text && text.length > 0) {
-        // --- 1. 拦截翻译文本，将其绝对定位在屏幕右侧 100 像素 ---
-        if ([text isEqualToString:@"翻译"] || [text isEqualToString:@"隐藏翻译"]) {
-            CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-            frame.origin.x = screenWidth - 100.0 - frame.size.width;
-        } 
-        // --- 2. 拦截时间文本，如果不够宽则扩充宽度 ---
-        else if ([self respondsToSelector:@selector(font)]) {
-            UIFont *font = label.font;
-            if (font) {
-                CGFloat expectedWidth = ceilf([text sizeWithAttributes:@{NSFontAttributeName: font}].width);
-                if (frame.size.width < expectedWidth && frame.size.width > 0) {
-                    frame.size.width = expectedWidth;
-                    label.clipsToBounds = NO;
-                }
-            }
-        }
-    }
-
-    %orig(frame);
+    objc_setAssociatedObject(label, kDYYYExactTimeBusyKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 %end
@@ -13100,8 +13090,10 @@ static void findTargetViewInView(UIView *view) {
 
     DYYYMigrateCombinedHDRModeIfNeeded();
 
+    // 只有开关打开时才安装这组 hook：该组挂在抖音的 Swift 类上，
+    // 无条件安装会破坏 Swift 调用约定，导致未启用该功能的用户也会闪退（详见 FORK.md 八）
     Class interactionBaseLabelClass = objc_getClass("AWECommentSwiftBizUI.CommentInteractionBaseLabel");
-    if (interactionBaseLabelClass) {
+    if (interactionBaseLabelClass && DYYYGetBool(@"DYYYCommentExactTime")) {
         %init(DYYYCommentExactTimeGroup, AWECommentSwiftBizUI_CommentInteractionBaseLabel = interactionBaseLabelClass);
     }
     
