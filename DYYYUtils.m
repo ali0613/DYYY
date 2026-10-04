@@ -895,6 +895,25 @@ static void DYYYApplyDisplayLocationToLabel(UILabel *label, NSString *displayLoc
     return [self findViewControllerOfClass:targetClass inViewController:vc.presentedViewController];
 }
 
++ (BOOL)isInsideDetailPageFromView:(UIView *)view {
+    if (!view)
+        return NO;
+
+    // 作品详情页（含合集详情）是被 push 进底栏控制器的，页面自身没有首页底栏；
+    // 判断依据放在响应者链上，比 referString 稳定（抖音会按入口改 referString）。
+    UIResponder *responder = view;
+    NSInteger guard = 0;
+    while (responder && guard < 40) {
+        NSString *className = NSStringFromClass([responder class]);
+        if ([className containsString:@"AWEAwemeDetail"] || [className containsString:@"AWEMixVideoPanelDetail"]) {
+            return YES;
+        }
+        responder = responder.nextResponder;
+        guard++;
+    }
+    return NO;
+}
+
 + (UIResponder *)findAncestorResponderOfClass:(Class)targetClass fromView:(UIView *)view {
     if (!view)
         return nil;

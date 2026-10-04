@@ -11579,6 +11579,12 @@ static Class tabBarButtonClass = nil;
         }
     }
 
+    // 作品详情页自身没有首页底栏（它是被 push 进底栏控制器的），再减一次底栏高度会凭空少 83pt，
+    // 文案/按钮的锚点会被顶到上面去 → 详情页一律按满高，保持抖音原样。
+    if (!useFullHeight && [DYYYUtils isInsideDetailPageFromView:self.view]) {
+        useFullHeight = YES;
+    }
+
     if (useFullHeight) {
         frame.size.height = superviewHeight;
     } else {
@@ -12677,21 +12683,15 @@ static Class TagViewClass = nil;
 
 %end
 
-%hook AWEAwemeDetailTableView
-
-- (void)setFrame:(CGRect)frame {
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
-        CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
-
-        CGFloat remainder = fmod(frame.size.height, screenHeight);
-        if (remainder != 0) {
-            frame.size.height += (screenHeight - remainder);
-        }
-    }
-    %orig(frame);
-}
-
-%end
+// 说明：上游这里有一段「详情页表格高度补成整屏」的补整（AWEAwemeDetailTableView -setFrame:，
+// 逻辑是把 frame.height 向上取整到屏幕高度的整数倍）。实测在抖音 40.6.0 上它会与抖音自身的
+// 分页网格打架：视频那一屏的 cell 只给"屏幕 − 底栏"（843），被补成 926 后与页网格错位 83pt，
+// 文案/按钮锚点也跟着上移。因此本分支**移除该 hook**：详情页一律保持抖音原样布局，
+// 「启用首页全屏」只作用于首页、搜索、朋友等原有场景。
+//
+// %hook AWEAwemeDetailTableView
+// - (void)setFrame:(CGRect)frame { ... 补整逻辑 ... }
+// %end
 
 %hook AWEMixVideoPanelMoreView
 

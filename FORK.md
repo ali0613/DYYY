@@ -20,7 +20,7 @@
 | 文件 | 差异 | 原因 |
 |---|---|---|
 | `Makefile` | 替换 | 追加 roothide 架构对齐；`DYYY_FILES` 追加垫片；`DYYY_CFLAGS` 追加 `-include compat/sdk17-compat.h` |
-| `control` | 替换 | 基础版本加 fork 修订号 `2.2-9fork1`（> 上游 `2.2-9`，不会被上游包降级覆盖）；`Conflicts/Replaces: com.lcs.dyui` 清掉更早的自研插件包 |
+| `control` | 替换 | 基础版本加 fork 修订号 `2.2-9fork2`（> 上游 `2.2-9`，不会被上游包降级覆盖）；`Conflicts/Replaces: com.lcs.dyui` 清掉更早的自研插件包 |
 | `compat/osversion-compat.m` | 新增 | 本机 clang 11 无 compiler-rt，`@available` 缺 `___isOSVersionAtLeast` 符号 |
 | `compat/sdk17-compat.h` | 新增 | iPhoneOS16.5.sdk 缺 iOS 17 的 `preferredImageDynamicRange` / `UIImageDynamicRangeStandard` |
 | `.gitattributes` | 新增 | 强制 LF 行尾，避免 WSL 脚本被 Windows 侧转成 CRLF |
@@ -50,7 +50,7 @@ wsl -d Ubuntu22 -- bash /mnt/d/xiazai/dsh/dyyy/scripts/verify.sh
 
 ### 版本号规则（已核对 theos 源码 + 实测）
 
-`control` 里的 `Version` 是 theos 的**基础版本**；不带 `FINALPACKAGE` 本地打包时会在后面追加构建号（计数落在项目 `.theos` 数据目录）。`build.sh` 每次都 `make clean`，所以版本稳定为 `2.2-9fork1-1`；连续 `make package` 且不清 `.theos` 才会递增成 `-2`、`-3`。上游 CI 走 `GITHUB_ACTIONS=true`（等价 `FINALPACKAGE=1`）得到的是干净的 `2.2-9`。
+`control` 里的 `Version` 是 theos 的**基础版本**；不带 `FINALPACKAGE` 本地打包时会在后面追加构建号（计数落在项目 `.theos` 数据目录）。`build.sh` 每次都 `make clean`，所以版本稳定为 `2.2-9fork2-1`；连续 `make package` 且不清 `.theos` 才会递增成 `-2`、`-3`。上游 CI 走 `GITHUB_ACTIONS=true`（等价 `FINALPACKAGE=1`）得到的是干净的 `2.2-9fork2`。
 
 ## 四、安装
 
@@ -121,3 +121,17 @@ wsl -d Ubuntu22 -- python3 -c 'data=open("/tmp/dyyy-verify/Library/MobileSubstra
 
 - `compat/` 只放工具链垫片，不写业务逻辑；SDK/工具链升级后应能整块删除
 - 不把实验性改动直接提到 `main`：新功能开分支（`git switch -c feature/xxx`），设备验证通过再合
+
+## 七、与上游的刻意差异：详情页恢复抖音原样
+
+上游的「启用首页全屏」在**作品详情页**上做了两处补偿，实测在抖音 40.6.0 上会与抖音自身的分页网格打架，表现为：进他人主页点开视频后，视频那一屏比页网格矮 83pt（正文下面多一条缝）、文案与右侧按钮的锚点上移，整页观感错乱。本分支的处理：
+
+| 上游行为 | 本分支处理 | 原因 |
+|---|---|---|
+| `AWEAwemeDetailTableView -setFrame:` 把表格高度向上取整到屏幕高度的整数倍 | **移除该 hook**（`DYYY.xm` 原处留说明注释） | 抖音自己的分页网格是整屏（926），而视频那一屏的 cell 只给"屏幕 − 底栏"（843）；补整后两者错位 83pt，且表格高度受 autolayout 管理、补了会被下一帧改回 |
+| `AWEPlayInteractionViewController -viewDidLayoutSubviews` 对非白名单 referString 一律用 `父高 − 底栏高度` | 详情页（响应者链含 `AWEAwemeDetail` / `AWEMixVideoPanelDetail`）按**满高**处理 | 详情页是被 push 进底栏控制器的，页面自身没有首页底栏；再减一次会凭空少 83pt，把文案/按钮锚点顶上去 |
+
+判定谓词：`+[DYYYUtils isInsideDetailPageFromView:]`。首页、搜索、朋友等原有白名单场景一行未改；关掉「启用首页全屏」即完全回到抖音原样。
+
+排查用的诊断开关、实时通道（设备 :8899）与五个运行时补偿参数，都保留在 `feature/detail-fullscreen` 分支上；以后再遇到详情页/全屏布局问题，切回该分支即可继续用（详见该分支的 `DYYYDetailDiagnostics` / `DYYYLiveChannel`）。
+

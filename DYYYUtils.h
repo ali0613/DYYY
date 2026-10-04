@@ -52,6 +52,12 @@ NS_ASSUME_NONNULL_BEGIN
 + (UIViewController *)firstAvailableViewControllerFromView:(UIView *)view;
 + (UIViewController *)findViewControllerOfClass:(Class)targetClass inViewController:(UIViewController *)vc;
 
+/**
+ * 判断视图是否处在「作品详情页」里（响应者链上出现 AWEAwemeDetail / AWEMixVideoPanelDetail）。
+ * 详情页是被 push 进底栏控制器的，页面自身没有首页底栏，做高度补偿时不能按"有底栏"处理。
+ */
++ (BOOL)isInsideDetailPageFromView:(UIView *)view;
+
 + (UIResponder *)findAncestorResponderOfClass:(Class)targetClass fromView:(UIView *)view;
 
 /*
