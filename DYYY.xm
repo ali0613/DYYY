@@ -4813,22 +4813,6 @@ static BOOL isGestureActive = NO;
         }
     }
 
-    // 隐藏模板徽标（作者名上方的「剪映 | 模板名」「拍同款 | 模板名」「N人使用」等来源标签）
-    // 只按文字前缀/后缀匹配，再沿父视图往上把「宽度明显小于屏幕」的容器一并隐藏，
-    // 这样能连徽标盒子、图标、使用人数一起收掉，又不会碰到整屏宽的作者名行。
-    if (DYYYGetBool(@"DYYYHideTemplateBadge") && text.length > 0 && text.length < 60) {
-        if ([text hasPrefix:@"剪映"] || [text hasPrefix:@"拍同款"] || [text hasSuffix:@"人使用"]) {
-            CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-            UIView *v = self.superview;
-            for (int i = 0; i < 4 && v; i++) {
-                if (v.bounds.size.width > 0 && v.bounds.size.width < screenWidth * 0.7) {
-                    v.hidden = YES;
-                }
-                v = v.superview;
-            }
-        }
-    }
-
     %orig(text);
 }
 %end
@@ -7907,16 +7891,12 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
-// 隐藏相机定位 / 隐藏模板徽标
+// 隐藏相机定位
 %hook AWETemplateCommonView
 - (void)layoutSubviews {
     %orig;
     if (DYYYGetBool(@"DYYYHideCameraLocation")) {
         [self removeFromSuperview];
-        return;
-    }
-    if (DYYYGetBool(@"DYYYHideTemplateBadge")) {
-        self.hidden = YES;
     }
 }
 %end
@@ -9396,67 +9376,15 @@ static NSHashTable *processedParentViews = nil;
 
 %end
 
-// 隐藏模板徽标（作者名上方的「剪映 | 模板名」「拍同款 | 模板名」等来源标签）
-// 三个候选类都做上，开关关着时完全不生效；类不存在时 Logos 自动跳过
-%hook AWEFeedTemplateAnchorView
-
-- (void)layoutSubviews {
-	%orig;
-	if (DYYYGetBool(@"DYYYHideTemplateBadge")) {
-		self.hidden = YES;
-	}
-}
-
-%end
-
-%hook AWEPlayInteractionTemplateButtonGroup
-
-- (void)layoutSubviews {
-	%orig;
-	if (DYYYGetBool(@"DYYYHideTemplateBadge")) {
-		self.hidden = YES;
-	}
-}
-
-%end
-
-// 隐藏模板徽标（作者名上方的「剪映 | 模板名」「拍同款 | 模板名」「N人使用」来源标签）
+// 隐藏推广信息（作者名上方的「剪映 | 模板名」「拍同款 | 模板名」「N人使用」等推广/模板来源标签）
 // 目标容器由 FLEX 现场定位：AWEFeedAnchorContainerView
 // （frame 325×61，父视图 AWEBaseElementView，首页与详情页共用同一个类）
 %hook AWEFeedAnchorContainerView
 
 - (void)layoutSubviews {
 	%orig;
-	if (!DYYYGetBool(@"DYYYHideTemplateBadge")) {
-		return;
-	}
-	// 只在这个容器内部浅层找文字（子视图很少，开销可忽略）
-	NSMutableArray *stack = [NSMutableArray arrayWithObject:self];
-	int guard = 0;
-	while (stack.count > 0 && guard++ < 40) {
-		UIView *v = stack.lastObject;
-		[stack removeLastObject];
-		for (UIView *sub in v.subviews) {
-			NSString *t = nil;
-			if ([sub respondsToSelector:@selector(text)]) {
-				id tv = [sub performSelector:@selector(text)];
-				if ([tv isKindOfClass:[NSString class]]) t = tv;
-			}
-			if (t.length == 0 && [sub respondsToSelector:@selector(accessibilityLabel)]) {
-				id av = [sub performSelector:@selector(accessibilityLabel)];
-				if ([av isKindOfClass:[NSString class]]) t = av;
-			}
-			if (t.length > 0 && t.length < 60) {
-				if ([t hasPrefix:@"剪映"] || [t hasPrefix:@"拍同款"] ||
-					[t containsString:@"人使用"] || [t hasPrefix:@"模板"]) {
-					self.hidden = YES;
-					return;
-				}
-			}
-			if (sub.subviews.count > 0) {
-				[stack addObject:sub];
-			}
-		}
+	if (DYYYGetBool(@"DYYYHideTemplateBadge")) {
+		self.hidden = YES;
 	}
 }
 
