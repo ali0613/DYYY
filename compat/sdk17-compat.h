@@ -17,10 +17,16 @@
 //
 //  一旦本地 SDK 升到 iOS 17+，本文件整体失效（#if 直接跳过），可以直接删掉。
 //
+//  ⚠️ 必须先包含 SDK 头再判断版本宏：__IPHONE_OS_VERSION_MAX_ALLOWED 由 Availability.h 定义，
+//  而本文件是被 `-include` 强制注入的 —— 处理它时 SDK 头还没进来，直接判断会拿到未定义值（0），
+//  于是这个 #if 恒为真，在 iOS 17+ SDK 上反而重复声明，报：
+//      typedef redefinition with different types ('NSString *' vs 'enum UIImageDynamicRange')
+//  （CI 环境是 Xcode 26.6 / iPhoneOS26.5.sdk，那里的 UIImageDynamicRange 是 NS_ENUM(NSInteger)）
+#import <Availability.h>
+#import <UIKit/UIKit.h>
 
 #if __IPHONE_OS_VERSION_MAX_ALLOWED < 170000
 
-#import <UIKit/UIKit.h>
 #import <dlfcn.h>
 
 typedef NSString *UIImageDynamicRange NS_TYPED_EXTENSIBLE_ENUM;

@@ -58,7 +58,9 @@ endif
 
 # theos 的 package/deb.mk:26 会从项目 control 文件回读 Architecture，优先级高于
 # scheme 模块设的值；不在这里对齐，roothide 包会被标成 iphoneos-arm（Sileo 装不上）。
-_DYYY_CONTROL_SYNC := $(shell sed -i 's/^Architecture:.*/Architecture: $(DYYY_PACKAGE_ARCH)/' $(CURDIR)/control 2>/dev/null; echo synced)
+# sed 用 -i.bak 形式：GNU sed 与 macOS 的 BSD sed 都认（BSD sed 不认裸 -i 后跟脚本），
+# 否则 CI 的 macOS runner 上会静默跳过对齐、三个 scheme 全被标成同一个架构。
+_DYYY_CONTROL_SYNC := $(shell sed -i.bak 's/^Architecture:.*/Architecture: $(DYYY_PACKAGE_ARCH)/' $(CURDIR)/control >/dev/null 2>&1; rm -f $(CURDIR)/control.bak; echo synced)
 
 # GitHub Actions 等无人值守环境只出包
 ifeq ($(GITHUB_ACTIONS),true)
