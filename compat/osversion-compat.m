@@ -12,12 +12,16 @@
 //  严禁简单 return 1 —— 那会让 iOS 17/18 专属分支在 iOS 16 上执行（例如给
 //  UIImageView 设置 iOS 17 才有的 preferredImageDynamicRange）。
 //
+//  必须是 weak 定义：Apple 工具链（Xcode）链接时会带进 libclang_rt.ios.a 里的
+//  os_version_check.c.o，它已经定义了同一个符号；强定义会直接撞成
+//      duplicate symbol '___isOSVersionAtLeast'
+//  weak 定义在两边都正确：macOS/Apple 工具链上强定义胜出（我们这份被忽略），
+//  本机 Linux 交叉工具链没有别的定义时由我们这份兜底。
+//
 
 #import <Foundation/Foundation.h>
 
-int32_t __isOSVersionAtLeast(int32_t major, int32_t minor, int32_t patch);
-
-int32_t __isOSVersionAtLeast(int32_t major, int32_t minor, int32_t patch) {
+__attribute__((weak)) int32_t __isOSVersionAtLeast(int32_t major, int32_t minor, int32_t patch) {
     static NSOperatingSystemVersion current;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
