@@ -1,0 +1,7 @@
+# 行尾统一 LF。
+# 本仓库在 Windows 上编辑、在 WSL 里编译；shell 脚本一旦带 CR 会让解析器报
+# "invalid trailing option" 之类的怪错（历史上踩过）。让 git 在 add/checkout 时强制 LF，
+# 不再依赖 core.autocrlf。
+* text=auto eol=lf
+*.deb binary
+*.png binary

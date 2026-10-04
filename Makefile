@@ -1,18 +1,31 @@
 #
-#  DYYY
+#  DYYY —— 个人维护分支
 #
-#  Copyright (c) 2024 huami. All rights reserved.
-#  Channel: @huamidev
-#  Created on: 2024/10/04
+#  上游：https://github.com/Wtrwx/DYYY （2.2-9 线）
+#  基线：commit 6bdc7c3 / tag DYYY_2.2-9#1687
+#  原仓库：https://github.com/huami1314/DYYY （2.2-8 线，另有 remote: huami）
 #
-# 本地配置文件（可选）
+#  本文件属于「构建适配层」（上游同名文件已被替换），改动原因见 FORK.md：
+#    1. 追加 roothide 架构对齐（上游 control 写死 iphoneos-arm，roothide 包会被标错）；
+#    2. DYYY_FILES 追加 compat/osversion-compat.m（本机 clang 11 缺 compiler-rt 符号）；
+#    3. DYYY_CFLAGS 追加 -include compat/sdk17-compat.h（iPhoneOS16.5 SDK 缺 iOS 17 声明）。
+#  源码文件保持与上游逐字节一致。
+#
+#  打包方案（默认 roothide）：
+#      make package                   # roothide（本机设备）
+#      make package SCHEME=rootless   # rootless（/var/jb）
+#      make package SCHEME=rootful    # 传统越狱
+#
+#  设备安装：make package INSTALL=1 THEOS_DEVICE_IP=192.168.x.x
+#  本地私有配置写 Makefile.local，不要改本文件。
+#
+
 -include Makefile.local
 
 TARGET = iphone:clang:latest:14.0
 ARCHS = arm64 arm64e
 
-#export THEOS=/Users/huami/theos
-#export THEOS_PACKAGE_SCHEME=roothide
+SCHEME ?= roothide
 
 # 根据参数选择打包方案
 ifeq ($(SCHEME),roothide)
@@ -23,7 +36,31 @@ else
     unexport THEOS_PACKAGE_SCHEME
 endif
 
-# 在GitHub Actions中运行时的特殊配置
+# 各越狱形态要求的包架构标记。
+# 注意：CI（.github/workflows/build-deb.yml）不走 SCHEME 参数，而是直接
+# `make package THEOS_PACKAGE_SCHEME=rootless`，这时以命令行为准；否则三种 scheme
+# 会被统一标成 roothide 的架构，rootless 包在 Sileo 里装不上。
+ifeq ($(origin THEOS_PACKAGE_SCHEME),command line)
+    ifeq ($(THEOS_PACKAGE_SCHEME),rootless)
+        DYYY_PACKAGE_ARCH := iphoneos-arm64
+    else ifeq ($(THEOS_PACKAGE_SCHEME),roothide)
+        DYYY_PACKAGE_ARCH := iphoneos-arm64e
+    else
+        DYYY_PACKAGE_ARCH := iphoneos-arm
+    endif
+else ifeq ($(SCHEME),roothide)
+    DYYY_PACKAGE_ARCH := iphoneos-arm64e
+else ifeq ($(SCHEME),rootless)
+    DYYY_PACKAGE_ARCH := iphoneos-arm64
+else
+    DYYY_PACKAGE_ARCH := iphoneos-arm
+endif
+
+# theos 的 package/deb.mk:26 会从项目 control 文件回读 Architecture，优先级高于
+# scheme 模块设的值；不在这里对齐，roothide 包会被标成 iphoneos-arm（Sileo 装不上）。
+_DYYY_CONTROL_SYNC := $(shell sed -i 's/^Architecture:.*/Architecture: $(DYYY_PACKAGE_ARCH)/' $(CURDIR)/control 2>/dev/null; echo synced)
+
+# GitHub Actions 等无人值守环境只出包
 ifeq ($(GITHUB_ACTIONS),true)
     export INSTALL = 0
     export FINALPACKAGE = 1
@@ -36,42 +73,36 @@ include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = DYYY
 
-DYYY_FILES = DYYY.xm DYYYFloatClearButton.xm DYYYFloatSpeedButton.m DYYYSettings.xm DYYYABTestHook.xm DYYYLongPressPanel.xm DYYYSettingsHelper.m DYYYImagePickerDelegate.m DYYYBackupPickerDelegate.m DYYYSettingViewController.m DYYYBottomAlertView.m DYYYCustomInputView.m DYYYOptionsSelectionView.m DYYYIconOptionsDialogView.m DYYYAboutDialogView.m DYYYKeywordListView.m DYYYFilterSettingsView.m DYYYConfirmCloseView.m DYYYToast.m DYYYManager.m DYYYUtils.m CityManager.m AWMSafeDispatchTimer.m
-DYYY_CFLAGS = -fobjc-arc -w
+# 名单与上游 Makefile 保持一致，仅在末尾追加工具链垫片。
+DYYY_FILES = DYYY.xm DYYYFloatClearButton.xm DYYYFloatSpeedButton.m DYYYSettings.xm DYYYABTestHook.xm DYYYLongPressPanel.xm DYYYSettingsHelper.m DYYYImagePickerDelegate.m DYYYBackupPickerDelegate.m DYYYSettingViewController.m DYYYBottomAlertView.m DYYYCustomInputView.m DYYYOptionsSelectionView.m DYYYIconOptionsDialogView.m DYYYAboutDialogView.m DYYYKeywordListView.m DYYYFilterSettingsView.m DYYYConfirmCloseView.m DYYYToast.m DYYYManager.m DYYYUtils.m CityManager.m AWMSafeDispatchTimer.m compat/osversion-compat.m
+DYYY_CFLAGS = -fobjc-arc -w -include $(CURDIR)/compat/sdk17-compat.h
 DYYY_LDFLAGS = -weak_framework AVFAudio
 DYYY_FRAMEWORKS = CoreAudio
 CXXFLAGS += -std=c++11
 CCFLAGS += -std=c++11
 DYYY_LOGOS_DEFAULT_GENERATOR = internal
 
-export THEOS_STRICT_LOGOS=0
-export ERROR_ON_WARNINGS=0
-export LOGOS_DEFAULT_GENERATOR=internal
+export THEOS_STRICT_LOGOS = 0
+export ERROR_ON_WARNINGS = 0
+export LOGOS_DEFAULT_GENERATOR = internal
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 
-ifeq ($(shell whoami),huami)
-    THEOS_DEVICE_IP = 192.168.31.227
-else
-    THEOS_DEVICE_IP = 192.168.15.201
-endif
-THEOS_DEVICE_PORT = 22
+# 设备安装（可选）：make package INSTALL=1 THEOS_DEVICE_IP=192.168.x.x
+THEOS_DEVICE_PORT ?= 22
 
 # 清理 packages 目录
 clean::
-	@echo -e "\033[31m==>\033[0m Cleaning packages…"
+	@echo "==> 清理 packages / .theos"
 	@rm -rf .theos packages
 
-# 编译并自动安装
 after-package::
-	@echo -e "\033[32m==>\033[0m Packaging complete."
+	@echo "==> 打包完成，产物在 packages/"
 	@if [ "$(GITHUB_ACTIONS)" != "true" ] && [ "$(INSTALL)" = "1" ]; then \
-        DEB_FILE=$$(ls -t packages/*.deb | head -1); \
-        PACKAGE_NAME=$$(basename "$$DEB_FILE" | cut -d'_' -f1); \
-        echo -e "\033[34m==>\033[0m Installing $$PACKAGE_NAME to device…"; \
-        ssh root@$(THEOS_DEVICE_IP) "rm -rf /tmp/$${PACKAGE_NAME}.deb"; \
-        scp "$$DEB_FILE" root@$(THEOS_DEVICE_IP):/tmp/$${PACKAGE_NAME}.deb; \
-        ssh root@$(THEOS_DEVICE_IP) "dpkg -i --force-overwrite /tmp/$${PACKAGE_NAME}.deb && rm -f /tmp/$${PACKAGE_NAME}.deb"; \
+		DEB=$$(ls -t packages/*.deb | head -1); \
+		echo "==> 安装 $$DEB 到 $(THEOS_DEVICE_IP)"; \
+		scp "$$DEB" root@$(THEOS_DEVICE_IP):/tmp/dyyy.deb; \
+		ssh root@$(THEOS_DEVICE_IP) "dpkg -i --force-overwrite /tmp/dyyy.deb && rm -f /tmp/dyyy.deb"; \
 	else \
-        echo -e "\033[33m==>\033[0m Skipping installation (GitHub Actions environment or INSTALL!=1)"; \
+		echo "==> 跳过设备安装（INSTALL != 1）"; \
 	fi

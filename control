@@ -1,12 +1,14 @@
 Package: com.huami.dyyy
 Name: DYYY
-Version: 2.2-9
-Description: 仅供学习交流，请在 24 小时内自觉删除。
-Homepage: https://github.com/huami1314/DYYY
+Version: 2.2-9fork1
+Description: 抖音 UI 调整（个人维护分支）：顶栏/底栏精简、隐藏面板、下载、倍速、清屏、ABTest 等。基线 Wtrwx/DYYY tag DYYY_2.2-9#1687。
+Homepage: https://github.com/Wtrwx/DYYY
 Section: Tweaks
-Depends: firmware (>= 5.0), mobilesubstrate
+Depends: firmware (>= 14.0), mobilesubstrate
+Conflicts: com.lcs.dyui
+Replaces: com.lcs.dyui
 Priority: optional
-Maintainer: huami
+Maintainer: YG
 Author: huami
-Architecture: iphoneos-arm
+Architecture: iphoneos-arm64e
 Icon: https://Mieing.Github.io/repo/file/TikTok.png
