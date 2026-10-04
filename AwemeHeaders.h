@@ -1611,6 +1611,11 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 @property(retain, nonatomic) AWECodeGenCommonAnchorBasicInfoModel *templateAnchorInfo;
 @end
 
+// 作者名上方的锚点容器（承载「剪映 | 模板名」「拍同款 | 模板名」「N人使用」等模板来源徽标）
+// 由 FLEX 现场定位：frame 325×61，父视图 AWEBaseElementView，首页与详情页共用
+@interface AWEFeedAnchorContainerView : UIView
+@end
+
 @interface AWEKnowledgeABTestSettings : NSObject
 + (BOOL)enableHDRAutomaticIdentification;
 @end
