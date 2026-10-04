@@ -11,12 +11,13 @@
 #    3. DYYY_CFLAGS 追加 -include compat/sdk17-compat.h（iPhoneOS16.5 SDK 缺 iOS 17 声明）。
 #  源码文件保持与上游逐字节一致。
 #
-#  打包方案（默认 roothide）：
-#      make package                   # roothide（本机设备）
-#      make package SCHEME=rootless   # rootless（/var/jb）
-#      make package SCHEME=rootful    # 传统越狱
+#  打包方案：
+#      bash scripts/build.sh roothide   # 本机构建走这个（默认 roothide）
+#      make package SCHEME=rootless     # rootless（/var/jb）
+#      make package SCHEME=roothide     # 与 build.sh 等价
+#      make package                     # 不指定 = rootful（与上游一致；CI 的 Build Rootful 就这么跑）
 #
-#  设备安装：make package INSTALL=1 THEOS_DEVICE_IP=192.168.x.x
+#  设备安装：make package SCHEME=roothide INSTALL=1 THEOS_DEVICE_IP=192.168.x.x
 #  本地私有配置写 Makefile.local，不要改本文件。
 #
 
@@ -25,7 +26,10 @@
 TARGET = iphone:clang:latest:14.0
 ARCHS = arm64 arm64e
 
-SCHEME ?= roothide
+# 注意：默认值必须留空。上游 CI（build.yml）的 Build Rootful 步骤是裸跑 `make package`，
+# 靠「不指定 scheme」拿 rootful 包；这里若默认成 roothide，那一步会打出 roothide 包
+# （文件名 arm64e 而非 arm），后续步骤的文件名推断与排序都会跟着错。
+SCHEME ?=
 
 # 根据参数选择打包方案
 ifeq ($(SCHEME),roothide)

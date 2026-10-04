@@ -45,7 +45,8 @@ wsl -d Ubuntu22 -- bash /mnt/d/xiazai/dsh/dyyy/scripts/verify.sh
 
 1. **包架构由 `control` 决定，不是 `SCHEME`**：`theos/makefiles/package/deb.mk:26` 会从项目 `control` 回读 `Architecture`，覆盖 scheme 模块的值 → roothide 包被标成 `iphoneos-arm`、Sileo 拒绝安装。Makefile 里的 `_DYYY_CONTROL_SYNC` 在解析期用 sed 对齐（`deb.mk:52` 打包时还会删掉 control 里的 Version/Architecture 行重写，最终值由内部变量决定）。
 2. **clang 11 没有 compiler-rt**：任何 `@available` 都会引用 `___isOSVersionAtLeast`，链接报 Undefined symbols。垫片必须做**真实版本比较**，不能 `return 1`——否则 iOS 17 专属分支会在 iOS 16 上执行。
-3. **16.5 SDK 缺 iOS 17 声明**：`compat/sdk17-compat.h` 用 `-include` 强制注入补齐属性声明；常量用 `dlsym` 从已加载的 UIKit 取真值（16.5 SDK 里没这个导出符号，`UIKIT_EXTERN` 和 `weak_import` 都过不了链接）。上游 `DYYY.xm` 因此保持逐字节不变。SDK 升到 17+ 后该头文件自动失效，可整块删除。
+3. **16.5 SDK 缺 iOS 17 声明**：`compat/sdk17-compat.h` 用 `-include` 强制注入补齐属性声明；常量用 `dlsym` 从已加载的 UIKit 取真值（16.5 SDK 里没这个导出符号，`UIKIT_EXTERN` 和 `weak_import` 都过不了链接）。上游 `DYYY.xm` 因此保持逐字节不变。SDK 升到 17+ 后该头文件自动失效，可整块删除。另两处 CI 才暴露的坑：**文件被 `-include` 注入时不能直接判 `__IPHONE_OS_VERSION_MAX_ALLOWED`**（那时宏还没定义，判断恒真 → 在 iOS 17+ SDK 上重复声明），必须先 `#import <Availability.h>`；**垫片符号必须 weak 定义**（Apple 工具链的 `libclang_rt.ios.a` 已定义 `__isOSVersionAtLeast`，强定义会撞 duplicate symbol）。
+4. **默认 scheme 必须留空**：上游 CI 的 `Build Rootful` 步骤是裸跑 `make package`，靠「不指定 scheme」出 rootful 包。Makefile 里若默认成 roothide，那一步会打出 arm64e 文件名，后续重命名循环与 `packages/*.deb` 排序错位、步骤返回 1（实测踩过）。本机构建统一走 `scripts/build.sh`，它显式传 `SCHEME=roothide`。
 
 ### 版本号规则（已核对 theos 源码 + 实测）
 
