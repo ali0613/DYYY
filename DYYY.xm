@@ -9659,17 +9659,19 @@ static BOOL gDYYYElementShiftApplying = NO;
 	}
 
 	// 「昵称文案缩放」：必须放在下面那段「右侧栏上移」的提前 return **之前** ✗。
-	// 那段要求 self.window 存在，而复用时视图可能还没挂到窗口上 —— 一旦提前 return，
-	// 这里的缩放写入就永远执行不到（表现："滑回上一个再滑回来缩放失效、再多滑几下又好了"）。
+	// 但同时也**只能写给已经挂到窗口上的视图** —— 这个类不止昵称在用（右侧按钮、底部行也是它），
+	// 复用/预创建阶段（window 为空）给它写缩放会污染抖音自己的布局。
 	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
 	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
-	gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
-	if (scale > 0 && scale != 1.0) {
-		self.transform = CGAffineTransformMakeScale(scale, scale);
-	} else {
-		self.transform = CGAffineTransformIdentity;
+	if (self.window) {
+		gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
+		if (scale > 0 && scale != 1.0) {
+			self.transform = CGAffineTransformMakeScale(scale, scale);
+		} else {
+			self.transform = CGAffineTransformIdentity;
+		}
+		gDYYYFeedNicknameScaling = NO;
 	}
-	gDYYYFeedNicknameScaling = NO;
 	[DYYYUtils logFeedNicknameScaleEntry:@"layoutSubviews后" view:self];   // ⚠️ 临时诊断
 
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
@@ -13014,7 +13016,8 @@ static Class TagViewClass = nil;
 	// 无文案的视频复用时，抖音可能**不写 transform**（那样 setTransform: 就不会触发），
 	// 但一定会重新摆 frame —— 所以这里也补一次。
 	// 直接把当前 transform 回灌一次，复用 setTransform: 里那套逻辑，避免重复代码。
-	if (!gDYYYFeedNicknameScaling) {
+	// 但同样只对「已挂到窗口上」的视图动手（预创建阶段写入会污染抖音布局）。
+	if (!gDYYYFeedNicknameScaling && self.window) {
 		self.transform = self.transform;
 	}
 }
@@ -13029,6 +13032,9 @@ static Class TagViewClass = nil;
 	// 布局不重跑，缩放就丢了。这里在抖音写入的那一刻立刻补回来。
 	if (gDYYYFeedNicknameScaling) {
 		return;   // 是 DYYY 自己写的，忽略
+	}
+	if (!self.window) {
+		return;   // 还没挂到窗口（预创建/复用阶段）：不干预，否则会污染抖音自己的布局
 	}
 	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
 	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
