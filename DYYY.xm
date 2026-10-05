@@ -3927,15 +3927,17 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
     // 文案字体加粗：按 NSFontAttributeName 逐段换成粗体，
     // 只改字体本身（用 addAttribute，保留话题高亮等其它富文本属性），
     // 已是粗体的段落直接跳过 —— 反复布局也只会变粗一次（幂等）。
-    if (DYYYGetBool(@"DYYYBoldDescription")) {
-        NSAttributedString *dyAttr = self.attributedText;
+    // 注意：文案有新老两处 hook（标签 / 滚动容器），这里用类型判断只在标签上生效。
+    if (DYYYGetBool(@"DYYYBoldDescription") && [self isKindOfClass:[UILabel class]]) {
+        UILabel *dyLabel = (UILabel *)(id)self;
+        NSAttributedString *dyAttr = dyLabel.attributedText;
         if (dyAttr.length > 0) {
             NSMutableAttributedString *dyBold = [dyAttr mutableCopy];
             [dyAttr enumerateAttribute:NSFontAttributeName
                                inRange:NSMakeRange(0, dyAttr.length)
                                options:0
                             usingBlock:^(UIFont *dyFont, NSRange dyRange, BOOL *dyStop) {
-                UIFont *dyBase = dyFont ?: self.font;
+                UIFont *dyBase = dyFont ?: dyLabel.font;
                 if (!dyBase) {
                     return;
                 }
@@ -3950,15 +3952,15 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
                 }
             }];
             if (![dyBold isEqualToAttributedString:dyAttr]) {
-                self.attributedText = dyBold;
+                dyLabel.attributedText = dyBold;
             }
-        } else if (self.text.length > 0) {
-            UIFont *dyBase = self.font;
+        } else if (dyLabel.text.length > 0) {
+            UIFont *dyBase = dyLabel.font;
             if (dyBase && !(dyBase.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
                 UIFontDescriptor *dyDesc = [dyBase.fontDescriptor fontDescriptorWithSymbolicTraits:(dyBase.fontDescriptor.symbolicTraits | UIFontDescriptorTraitBold)];
                 UIFont *dyBoldFont = dyDesc ? [UIFont fontWithDescriptor:dyDesc size:dyBase.pointSize] : nil;
                 if (dyBoldFont) {
-                    self.font = dyBoldFont;
+                    dyLabel.font = dyBoldFont;
                 }
             }
         }
@@ -4066,15 +4068,17 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
     // 文案字体加粗：按 NSFontAttributeName 逐段换成粗体，
     // 只改字体本身（用 addAttribute，保留话题高亮等其它富文本属性），
     // 已是粗体的段落直接跳过 —— 反复布局也只会变粗一次（幂等）。
-    if (DYYYGetBool(@"DYYYBoldDescription")) {
-        NSAttributedString *dyAttr = self.attributedText;
+    // 注意：文案有新老两处 hook（标签 / 滚动容器），这里用类型判断只在标签上生效。
+    if (DYYYGetBool(@"DYYYBoldDescription") && [self isKindOfClass:[UILabel class]]) {
+        UILabel *dyLabel = (UILabel *)(id)self;
+        NSAttributedString *dyAttr = dyLabel.attributedText;
         if (dyAttr.length > 0) {
             NSMutableAttributedString *dyBold = [dyAttr mutableCopy];
             [dyAttr enumerateAttribute:NSFontAttributeName
                                inRange:NSMakeRange(0, dyAttr.length)
                                options:0
                             usingBlock:^(UIFont *dyFont, NSRange dyRange, BOOL *dyStop) {
-                UIFont *dyBase = dyFont ?: self.font;
+                UIFont *dyBase = dyFont ?: dyLabel.font;
                 if (!dyBase) {
                     return;
                 }
@@ -4089,15 +4093,15 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
                 }
             }];
             if (![dyBold isEqualToAttributedString:dyAttr]) {
-                self.attributedText = dyBold;
+                dyLabel.attributedText = dyBold;
             }
-        } else if (self.text.length > 0) {
-            UIFont *dyBase = self.font;
+        } else if (dyLabel.text.length > 0) {
+            UIFont *dyBase = dyLabel.font;
             if (dyBase && !(dyBase.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
                 UIFontDescriptor *dyDesc = [dyBase.fontDescriptor fontDescriptorWithSymbolicTraits:(dyBase.fontDescriptor.symbolicTraits | UIFontDescriptorTraitBold)];
                 UIFont *dyBoldFont = dyDesc ? [UIFont fontWithDescriptor:dyDesc size:dyBase.pointSize] : nil;
                 if (dyBoldFont) {
-                    self.font = dyBoldFont;
+                    dyLabel.font = dyBoldFont;
                 }
             }
         }
