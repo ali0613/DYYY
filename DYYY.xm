@@ -2820,7 +2820,7 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
         // 文案字体加粗：抖音 40.x 的文案由 YYLabel 渲染，在文本写入的这一刻处理最稳
         if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescBoldApplyingYY) {
             gDYYYDescBoldApplyingYY = YES;
-            [DYYYUtils applyBoldFontRecursivelyInView:self];
+            [DYYYUtils applyBoldFontRecursivelyInView:(UIView *)(id)self];
             gDYYYDescBoldApplyingYY = NO;
         }
         return;
