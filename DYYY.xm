@@ -32,6 +32,8 @@
 static CGFloat gStartY = 0.0;
 // 文案加粗的防重入标志（文件级：文案的标签 hook 与滚动容器 hook 共用）
 static BOOL gDYYYDescBoldApplyingAll = NO;
+// 首页直播卡片整块缩放：缓存该视图原始 transform 的关联键（抖音自带 transform，不能覆盖）
+static char kDYYYLiveStackOriginalTransformKey;
 static CGFloat gStartVal = 0.0;
 static DYEdgeMode gMode = DYEdgeModeNone;
 static __weak UICollectionView *gFeedCV = nil;
@@ -7951,46 +7953,6 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
-// 首页直播卡片（「直播中」卡片）整块缩放
-// 容器为 IESLiveStackView（FLEX 现场确认：frame (57,-122;404×79)，本身自带 transform [1,0,0,1,0,-20]）
-// 两个要点：
-//   1) 该视图自带抖音的 transform —— 先缓存原始值，再在其上叠加缩放，绝不覆盖；
-//   2) 必须用 layer.transform —— UIView.transform 会被 UIStackView 布局反复叠加导致比例失真。
-static char kDYYYLiveStackOriginalTransformKey;
-
-%hook IESLiveStackView
-
-- (void)layoutSubviews {
-	%orig;
-
-	NSValue *dyOrig = objc_getAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey);
-	if (!dyOrig) {
-		dyOrig = [NSValue valueWithCATransform3D:self.layer.transform];
-		objc_setAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey, dyOrig, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-	}
-
-	const CGFloat dyScale = DYYYGetFloat(@"DYYYNicknameScale");
-	CATransform3D dyBase = [dyOrig CATransform3DValue];
-	if (dyScale == 0.0) {
-		if (!CATransform3DEqualToTransform(self.layer.transform, dyBase)) {
-			self.layer.transform = dyBase;
-		}
-		return;
-	}
-
-	const CGFloat dyTarget = MAX(0.01, dyScale);
-	const CGFloat dyWidth = self.bounds.size.width;
-	const CGFloat dyTx = (dyWidth - dyWidth * dyTarget) / -2.0;   // 负值：把左边缘拉回原位
-	CATransform3D dyT = CATransform3DConcat(CATransform3DMakeTranslation(dyTx, 0, 0),
-	                                        CATransform3DMakeScale(dyTarget, dyTarget, 1.0));
-	dyT = CATransform3DConcat(dyT, dyBase);
-	if (!CATransform3DEqualToTransform(self.layer.transform, dyT)) {
-		self.layer.transform = dyT;
-	}
-}
-
-%end
-
 %hook AWELiveFeedLabelTagView
 - (void)layoutSubviews {
 
@@ -12408,6 +12370,34 @@ static Class TagViewClass = nil;
 - (void)layoutSubviews {
     %orig;
 
+    // 首页直播卡片（信息流里的「直播中」卡片）整块缩放。
+    // 抖音自身给该视图带了 transform（-20 上移）：先缓存原始值再叠加，绝不覆盖；
+    // 且必须用 layer.transform —— UIView.transform 会被 UIStackView 布局反复叠加导致比例失真。
+    if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
+        NSValue *dyOrig = objc_getAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey);
+        if (!dyOrig) {
+            dyOrig = [NSValue valueWithCATransform3D:self.layer.transform];
+            objc_setAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey, dyOrig, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        const CGFloat dyScale = DYYYGetFloat(@"DYYYNicknameScale");
+        CATransform3D dyBase = [dyOrig CATransform3DValue];
+        if (dyScale == 0.0) {
+            if (!CATransform3DEqualToTransform(self.layer.transform, dyBase)) {
+                self.layer.transform = dyBase;
+            }
+        } else {
+            const CGFloat dyTarget = MAX(0.01, dyScale);
+            const CGFloat dyWidth = self.bounds.size.width;
+            const CGFloat dyTx = (dyWidth - dyWidth * dyTarget) / -2.0;   // 负值：把左边缘拉回原位
+            CATransform3D dyT = CATransform3DConcat(CATransform3DMakeTranslation(dyTx, 0, 0),
+                                                    CATransform3DMakeScale(dyTarget, dyTarget, 1.0));
+            dyT = CATransform3DConcat(dyT, dyBase);
+            if (!CATransform3DEqualToTransform(self.layer.transform, dyT)) {
+                self.layer.transform = dyT;
+            }
+        }
+    }
+
     UIViewController *viewController = [DYYYUtils firstAvailableViewControllerFromView:self];
 
     if ([viewController isKindOfClass:%c(AWELiveNewPreStreamViewController)]) {
@@ -12621,6 +12611,34 @@ static Class TagViewClass = nil;
 
 - (void)layoutSubviews {
     %orig;
+
+    // 首页直播卡片（信息流里的「直播中」卡片）整块缩放。
+    // 抖音自身给该视图带了 transform（-20 上移）：先缓存原始值再叠加，绝不覆盖；
+    // 且必须用 layer.transform —— UIView.transform 会被 UIStackView 布局反复叠加导致比例失真。
+    if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
+        NSValue *dyOrig = objc_getAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey);
+        if (!dyOrig) {
+            dyOrig = [NSValue valueWithCATransform3D:self.layer.transform];
+            objc_setAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey, dyOrig, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        const CGFloat dyScale = DYYYGetFloat(@"DYYYNicknameScale");
+        CATransform3D dyBase = [dyOrig CATransform3DValue];
+        if (dyScale == 0.0) {
+            if (!CATransform3DEqualToTransform(self.layer.transform, dyBase)) {
+                self.layer.transform = dyBase;
+            }
+        } else {
+            const CGFloat dyTarget = MAX(0.01, dyScale);
+            const CGFloat dyWidth = self.bounds.size.width;
+            const CGFloat dyTx = (dyWidth - dyWidth * dyTarget) / -2.0;   // 负值：把左边缘拉回原位
+            CATransform3D dyT = CATransform3DConcat(CATransform3DMakeTranslation(dyTx, 0, 0),
+                                                    CATransform3DMakeScale(dyTarget, dyTarget, 1.0));
+            dyT = CATransform3DConcat(dyT, dyBase);
+            if (!CATransform3DEqualToTransform(self.layer.transform, dyT)) {
+                self.layer.transform = dyT;
+            }
+        }
+    }
 
     UIViewController *viewController = [DYYYUtils firstAvailableViewControllerFromView:self];
 
