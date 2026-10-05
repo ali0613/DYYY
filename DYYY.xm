@@ -9376,30 +9376,6 @@ static NSHashTable *processedParentViews = nil;
 
 %end
 
-// 调整右侧栏上移距离（首页/详情页的右侧竖列：头像、点赞、评论、收藏、分享、音乐碟）
-// 容器由 FLEX 现场确认：AWEElementStackView（内部每个元素是 AWEBaseElementView）
-%hook AWEElementStackView
-
-- (void)layoutSubviews {
-	%orig;
-
-	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
-	if (shiftUp == 0.0) {
-		return;
-	}
-
-	// 只处理屏幕右半边的「竖列」，避免影响其它 stack（如底部横排）
-	CGRect frame = self.frame;
-	const CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-	if (frame.origin.x < screenWidth * 0.5 || frame.size.height <= frame.size.width) {
-		return;
-	}
-
-	self.transform = CGAffineTransformMakeTranslation(0, -shiftUp);
-}
-
-%end
-
 // 隐藏推广信息（作者名上方的「剪映 | 模板名」「拍同款 | 模板名」「N人使用」等推广/模板来源标签）
 // 目标容器由 FLEX 现场定位：AWEFeedAnchorContainerView
 // （frame 325×61，父视图 AWEBaseElementView，首页与详情页共用同一个类）
@@ -12182,6 +12158,19 @@ static Class TagViewClass = nil;
 - (void)layoutSubviews {
     %orig;
 
+    // 右侧栏上移（首页/详情页的右侧竖列：头像、点赞、评论、收藏、分享、音乐碟）
+    // 容器 AWEElementStackView 由 FLEX 现场确认；只处理屏幕右半边且为竖排的那个 stack。
+    {
+        const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
+        if (shiftUp != 0.0) {
+            CGRect dyFrame = self.frame;
+            const CGFloat dyScreenWidth = [UIScreen mainScreen].bounds.size.width;
+            if (dyFrame.origin.x >= dyScreenWidth * 0.5 && dyFrame.size.height > dyFrame.size.width) {
+                self.transform = CGAffineTransformMakeTranslation(0, -shiftUp);
+            }
+        }
+    }
+
     UIViewController *viewController = [DYYYUtils firstAvailableViewControllerFromView:self];
 
     if ([viewController isKindOfClass:%c(AWELiveNewPreStreamViewController)]) {
@@ -12395,6 +12384,19 @@ static Class TagViewClass = nil;
 
 - (void)layoutSubviews {
     %orig;
+
+    // 右侧栏上移（首页/详情页的右侧竖列：头像、点赞、评论、收藏、分享、音乐碟）
+    // 容器 AWEElementStackView 由 FLEX 现场确认；只处理屏幕右半边且为竖排的那个 stack。
+    {
+        const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
+        if (shiftUp != 0.0) {
+            CGRect dyFrame = self.frame;
+            const CGFloat dyScreenWidth = [UIScreen mainScreen].bounds.size.width;
+            if (dyFrame.origin.x >= dyScreenWidth * 0.5 && dyFrame.size.height > dyFrame.size.width) {
+                self.transform = CGAffineTransformMakeTranslation(0, -shiftUp);
+            }
+        }
+    }
 
     UIViewController *viewController = [DYYYUtils firstAvailableViewControllerFromView:self];
 
