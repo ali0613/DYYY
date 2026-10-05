@@ -12248,6 +12248,11 @@ static Class TagViewClass = nil;
 %hook AWEElementStackView
 
 - (void)setAlpha:(CGFloat)alpha {
+    // 直播卡片缩放：实测 layoutSubviews / didMoveToWindow 在该视图上都不触发，
+    // 而本方法（全局透明度）确实在执行（FLEX 里 alpha 0.9 就是证据）—— 借用这个必然触发的入口。
+    if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
+        [DYYYUtils applyLiveCardScaleToStack:self];
+    }
     BOOL isApplyingGlobal = (dyyyGlobalTransparencyMutationDepth > 0);
     if (!isApplyingGlobal) {
         objc_setAssociatedObject(self, &kDYYYGlobalTransparencyBaseAlphaKey, @(alpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -12556,6 +12561,11 @@ static Class TagViewClass = nil;
 }
 
 - (void)setAlpha:(CGFloat)alpha {
+    // 直播卡片缩放：实测 layoutSubviews / didMoveToWindow 在该视图上都不触发，
+    // 而本方法（全局透明度）确实在执行（FLEX 里 alpha 0.9 就是证据）—— 借用这个必然触发的入口。
+    if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
+        [DYYYUtils applyLiveCardScaleToStack:self];
+    }
     BOOL isApplyingGlobal = (dyyyGlobalTransparencyMutationDepth > 0);
     if (!isApplyingGlobal) {
         objc_setAssociatedObject(self, &kDYYYGlobalTransparencyBaseAlphaKey, @(alpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -12889,6 +12899,11 @@ static Class TagViewClass = nil;
 %hook AWELandscapeFeedEntryView
 
 - (void)setAlpha:(CGFloat)alpha {
+    // 直播卡片缩放：实测 layoutSubviews / didMoveToWindow 在该视图上都不触发，
+    // 而本方法（全局透明度）确实在执行（FLEX 里 alpha 0.9 就是证据）—— 借用这个必然触发的入口。
+    if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
+        [DYYYUtils applyLiveCardScaleToStack:self];
+    }
     BOOL isApplyingGlobal = (dyyyGlobalTransparencyMutationDepth > 0);
     if (!isApplyingGlobal) {
         objc_setAssociatedObject(self, &kDYYYGlobalTransparencyBaseAlphaKey, @(alpha), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
