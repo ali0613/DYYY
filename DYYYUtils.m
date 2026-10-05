@@ -619,6 +619,8 @@ static void DYYYApplyDisplayLocationToLabel(UILabel *label, NSString *displayLoc
     }
 
     [DYYYUtils applyColorSettingsToLabel:label colorHexString:colorHexString];
+    // 时间属地整行默认 0.6 透明度（时间 + IP属地 是同一个标签，整行一起变淡）
+    label.alpha = 0.6;
 }
 
 + (void)processAndApplyIPLocationToLabel:(UILabel *)label forModel:(AWEAwemeModel *)model withLabelColor:(NSString *)colorHexString {

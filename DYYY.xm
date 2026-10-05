@@ -3739,6 +3739,8 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
         }
 
         [DYYYUtils applyColorSettingsToLabel:lbl colorHexString:labelColorHex];
+        // 时间属地整行默认 0.6 透明度（时间 + IP属地 是同一个标签，整行一起变淡）
+        lbl.alpha = 0.6;
     };
 
     if (cityCode.length == 0 && regionCode.length == 0) {
