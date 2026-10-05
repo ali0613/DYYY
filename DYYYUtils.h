@@ -337,43 +337,6 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (void)applyLiveCardScaleCentered:(UIView *)view;
 
-/**
- * 首页视频「昵称文案缩放」的统一入口（AWELandscapeFeedEntryView）。
- * 内含两道保护：
- *   1. 横屏期间直接返回 —— 抖音横屏有自己的元素布局，此时写 transform 会毁掉它，
- *      自动翻回竖屏后元素位置就错乱（手动翻转走的路不同，所以看不出问题）；
- *   2. 在「抖音写入的基准变换」之上叠加缩放，而不是覆盖。
- */
-+ (void)applyFeedNicknameScaleToView:(UIView *)view;
-/** 记录抖音刚写入的基准变换（由 setTransform: 钩子调用） */
-+ (void)noteFeedEntryBaseTransform:(CGAffineTransform)transform forView:(UIView *)view;
-/** 当前是否正由 DYYY 写入昵称缩放（供 setTransform: 防自触发） */
-+ (BOOL)isApplyingFeedNicknameScale;
-
-/**
- * 是否应当执行「启用首页全屏」的布局调整。
- * 横屏时一律返回 NO —— 横屏下屏幕高/底栏高全部变样，此时写进去的 frame/高度会跟着那个 cell，
- * 直到 cell 复用重排才恢复（表现为：自动翻转→翻回竖屏后元素错乱、下滑几个视频自愈）。
- */
-+ (BOOL)isFullScreenAdjustEnabled;
-
-/**
- * 修复「横屏自动翻转往返后元素错乱」：竖屏下若某元素被摆到了窗口右边界之外
- * （说明它还在用横屏的坐标系），就往上找到第一个"宽度仍按横屏算"的祖先容器，
- * 下一帧强制它重排一次，逼抖音按竖屏尺寸重算坐标。
- */
-+ (void)fixStaleLandscapeLayoutForView:(UIView *)view;
-
-/**
- * 「启用首页全屏」改高度时统一走这里：会先记住抖音自己的高度（只记抖音写的值，不记我们自己写的），
- * 供方向切回竖屏时还原 —— 先还原、再让抖音按自己的尺子重排，从根上避免"首次自动翻转后元素错乱"。
- */
-+ (void)applyFullScreenHeight:(CGFloat)height toView:(UIView *)view;
-/** 把上面缓存过的抖音原高度写回去（没有缓存则不动） */
-+ (void)restoreFullScreenHeightForView:(UIView *)view;
-/** 还原所有被改过高度的视图（方向切回竖屏时调用） */
-+ (void)restoreAllFullScreenHeights;
-
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;

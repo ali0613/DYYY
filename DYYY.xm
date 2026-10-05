@@ -9593,12 +9593,6 @@ static BOOL gDYYYElementShiftApplying = NO;
 - (void)setFrame:(CGRect)frame {
 	%orig(frame);
 
-	// 横屏期间不干预：抖音横屏有自己的元素布局，覆盖 transform 会把"翻回竖屏"后的位置搞乱
-	//（自动翻转会走这条路径，手动翻转不会，所以只在自动翻转时暴露）。
-	UIWindow *dyElementWindow = self.window;
-	if (dyElementWindow && dyElementWindow.bounds.size.width > dyElementWindow.bounds.size.height) {
-		return;
-	}
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
@@ -9625,12 +9619,6 @@ static BOOL gDYYYElementShiftApplying = NO;
 - (void)didMoveToWindow {
 	%orig;
 
-	// 横屏期间不干预：抖音横屏有自己的元素布局，覆盖 transform 会把"翻回竖屏"后的位置搞乱
-	//（自动翻转会走这条路径，手动翻转不会，所以只在自动翻转时暴露）。
-	UIWindow *dyElementWindow = self.window;
-	if (dyElementWindow && dyElementWindow.bounds.size.width > dyElementWindow.bounds.size.height) {
-		return;
-	}
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
@@ -9657,10 +9645,6 @@ static BOOL gDYYYElementShiftApplying = NO;
 - (void)layoutSubviews {
 	%orig;
 
-	// 横屏自动翻转往返后，元素可能仍按横屏坐标排布（表现：翻回竖屏后整块错乱、下滑几个视频复用才自愈）。
-	// 竖屏下若发现元素被摆到窗口右边界之外，就强制它的父容器重排一次（方案 A）。
-	[DYYYUtils fixStaleLandscapeLayoutForView:self];
-
 	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
 	// 挂既有开关「隐藏去汽水听」DYYYHideQuqishuiting，不新增设置项；
 	// 类名首字母不确定，所以按「类名包含 DiversionBar」匹配。
@@ -9673,12 +9657,6 @@ static BOOL gDYYYElementShiftApplying = NO;
 		}
 	}
 
-	// 横屏期间不干预：抖音横屏有自己的元素布局，覆盖 transform 会把"翻回竖屏"后的位置搞乱
-	//（自动翻转会走这条路径，手动翻转不会，所以只在自动翻转时暴露）。
-	UIWindow *dyElementWindow = self.window;
-	if (dyElementWindow && dyElementWindow.bounds.size.width > dyElementWindow.bounds.size.height) {
-		return;
-	}
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
@@ -11694,7 +11672,7 @@ static Class tabBarButtonClass = nil;
         return;
     }
 
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         UIViewController *vc = [DYYYUtils firstAvailableViewControllerFromView:self];
         if ([vc isKindOfClass:%c(AWEAwemeDetailTableViewController)] ||
             [vc isKindOfClass:%c(AWEAwemeDetailCellViewController)]) {
@@ -11709,7 +11687,7 @@ static Class tabBarButtonClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         if (self.frame.size.height == originalTabBarHeight && originalTabBarHeight > 0) {
             UIViewController *vc = [DYYYUtils firstAvailableViewControllerFromView:self];
             if ([vc isKindOfClass:NSClassFromString(@"AWEMixVideoPanelDetailTableViewController")] || [vc isKindOfClass:NSClassFromString(@"AWECommentInputViewController")] ||
@@ -12060,7 +12038,7 @@ static Class tabBarButtonClass = nil;
 
 - (void)viewDidLayoutSubviews {
     %orig;
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         UIView *contentView = self.contentView;
         if (contentView && contentView.superview) {
             CGRect frame = contentView.frame;
@@ -12109,7 +12087,7 @@ static Class tabBarButtonClass = nil;
 
 - (void)viewDidLayoutSubviews {
     %orig;
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         UIView *contentView = self.contentView;
         if (contentView && contentView.superview) {
             CGRect frame = contentView.frame;
@@ -12151,7 +12129,7 @@ static Class tabBarButtonClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         CGRect frame = self.frame;
         frame.size.height = self.superview.frame.size.height;
         self.frame = frame;
@@ -12828,14 +12806,9 @@ static Class TagViewClass = nil;
                 }
 
                 CGRect frame = subview.frame;
-                if ([DYYYUtils isFullScreenAdjustEnabled]) {
-                    // 横屏期间不干预；竖屏时统一走 DYYYUtils —— 它会先缓存「抖音自己的高度」，
-                    // 供方向切回竖屏时还原（见 restoreAllFullScreenHeights），从根上避免首次翻转后的错乱。
-                    UIWindow *dyFSWindow = self.window;
-                    if (!(dyFSWindow && dyFSWindow.bounds.size.width > dyFSWindow.bounds.size.height)) {
-                        [DYYYUtils applyFullScreenHeight:(subview.superview.frame.size.height - gCurrentTabBarHeight)
-                                                  toView:subview];
-                    }
+                if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+                    frame.size.height = subview.superview.frame.size.height - gCurrentTabBarHeight;
+                    subview.frame = frame;
                 }
             }
             // 处理作者主页的情况
@@ -12906,7 +12879,7 @@ static Class TagViewClass = nil;
 - (void)setCenter:(CGPoint)center {
     BOOL shouldAdjust = NO;
     UIView *view = (UIView *)self;
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         CGFloat viewWidth = CGRectGetWidth(view.bounds);
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
         if (viewWidth + 0.5f >= screenWidth) {
@@ -12937,7 +12910,7 @@ static Class TagViewClass = nil;
 - (void)setCenter:(CGPoint)center {
     BOOL shouldAdjust = NO;
     UIView *view = (UIView *)self;
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         CGFloat viewWidth = CGRectGetWidth(view.bounds);
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
         if (viewWidth + 0.5f >= screenWidth) {
@@ -12968,7 +12941,7 @@ static Class TagViewClass = nil;
 - (void)setCenter:(CGPoint)center {
     BOOL shouldAdjust = NO;
     UIView *view = (UIView *)self;
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         CGFloat viewWidth = CGRectGetWidth(view.bounds);
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
         if (viewWidth + 0.5f >= screenWidth) {
@@ -13023,14 +12996,20 @@ static Class TagViewClass = nil;
 	%orig(transform);
 
 	// 「昵称文案缩放」的补套入口。
-	// 抖音在 cell 复用/横竖屏切换时会重写 transform；有文案的视频因为布局会重跑，
-	// layoutSubviews 里那段缩放会重新生效 —— 而**无文案的视频**复用时不重跑，缩放就丢了。
-	// 这里在抖音写入的那一刻：记录它的基准值，并立刻在基准之上补套缩放。
-	if ([DYYYUtils isApplyingFeedNicknameScale]) {
+	// 抖音在 cell 复用时会把 transform 重置掉；有文案的视频因为布局会重跑，
+	// layoutSubviews 里那段缩放会重新生效 —— 而**无文案的视频**复用时内部没有变化、
+	// 布局不重跑，缩放就丢了。这里在抖音写入的那一刻立刻补回来。
+	if (gDYYYFeedNicknameScaling) {
 		return;   // 是 DYYY 自己写的，忽略
 	}
-	[DYYYUtils noteFeedEntryBaseTransform:transform forView:self];
-	[DYYYUtils applyFeedNicknameScaleToView:self];   // 横屏时工具方法内部会自动跳过
+	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
+	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
+	if (scale <= 0 || scale == 1.0) {
+		return;   // 未启用缩放：不干预抖音的变换
+	}
+	gDYYYFeedNicknameScaling = YES;
+	self.transform = CGAffineTransformMakeScale(scale, scale);
+	gDYYYFeedNicknameScaling = NO;
 }
 
 - (void)setAlpha:(CGFloat)alpha {
@@ -13092,9 +13071,15 @@ static Class TagViewClass = nil;
         [self.superview bringSubviewToFront:self];
     }
 
-    // 统一走工具方法：内部含「横屏期间不干预」保护 + 「在抖音基准变换之上叠加缩放」，
-    // 并自带防自触发；横竖屏切换后由 setTransform: 那条路负责补套。
-    [DYYYUtils applyFeedNicknameScaleToView:self];
+    NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
+    CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
+    gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
+    if (scale > 0 && scale != 1.0) {
+        self.transform = CGAffineTransformMakeScale(scale, scale);
+    } else {
+        self.transform = CGAffineTransformIdentity;
+    }
+    gDYYYFeedNicknameScaling = NO;
 }
 
 %end
@@ -13112,7 +13097,7 @@ static Class TagViewClass = nil;
 %hook AWEMixVideoPanelMoreView
 
 - (void)setFrame:(CGRect)frame {
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         CGFloat targetY = frame.origin.y - gCurrentTabBarHeight;
         CGFloat screenHeightMinusGDiff = [UIScreen mainScreen].bounds.size.height - gCurrentTabBarHeight;
 
@@ -13128,7 +13113,7 @@ static Class TagViewClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         self.backgroundColor = [UIColor clearColor];
     }
 }
@@ -13182,7 +13167,7 @@ static Class TagViewClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
         UIView *parentView = self.superview;
         while (parentView) {
             if ([NSStringFromClass([parentView class]) isEqualToString:@"UIView"]) {
@@ -13407,7 +13392,7 @@ static NSString *const kHideRecentUsersKey = @"DYYYHideSidebarRecentUsers";
 - (void)layoutSubviews {
     %orig;
 
-    if ([DYYYUtils isFullScreenAdjustEnabled]) {
+    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
 
         self.backgroundColor = [UIColor clearColor];
 
