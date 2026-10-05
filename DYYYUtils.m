@@ -2500,6 +2500,53 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
     }
 }
 
++ (void)applyFeedNicknameScaleForButton:(UIView *)button {
+    if (!button) {
+        return;
+    }
+    NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
+    CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
+    if (scale <= 0 || scale == 1.0 || !button.window) {
+        return;   // 未启用 / 还没挂到窗口（预创建阶段不干预，避免污染抖音布局）
+    }
+    // 只认「昵称」那个按钮：它的标签文字以 @ 开头。
+    // AWEBButton 是通用按钮类，抖音到处都在用 —— 不加这道判别会把所有按钮所在的块都缩掉。
+    BOOL isNickname = NO;
+    for (UIView *sub in button.subviews) {
+        if ([sub isKindOfClass:[UILabel class]]) {
+            NSString *text = [(UILabel *)sub text];
+            if (text.length > 0 && [text hasPrefix:@"@"]) {
+                isNickname = YES;
+                break;
+            }
+        }
+    }
+    if (!isNickname) {
+        return;
+    }
+    // 往上三层 = 作者信息整块（AWEBButton → UIStackView → AWEBaseElementView → AWEElementStackView）
+    UIView *block = button.superview.superview.superview;
+    if (!block) {
+        return;
+    }
+    // 缓存抖音自己的基准变换，在其之上叠加缩放（不覆盖）
+    static char kDYYYFeedNicknameBlockBaseKey;
+    NSValue *baseValue = objc_getAssociatedObject(block, &kDYYYFeedNicknameBlockBaseKey);
+    if (!baseValue) {
+        baseValue = [NSValue valueWithCGAffineTransform:block.transform];
+        objc_setAssociatedObject(block, &kDYYYFeedNicknameBlockBaseKey, baseValue, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    const CGFloat width = block.bounds.size.width;
+    const CGFloat tx = (width - width * scale) / -2.0;   // 负值：左边缘钉住（内容左对齐）
+    CGAffineTransform want = CGAffineTransformConcat(
+        CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
+                                CGAffineTransformMakeScale(scale, scale)),
+        [baseValue CGAffineTransformValue]);
+    if (!CGAffineTransformEqualToTransform(block.transform, want)) {
+        block.transform = want;
+    }
+}
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root {
     if (!root) {
         return;

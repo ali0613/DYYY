@@ -4155,51 +4155,17 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 // 上游那套 hook 的是 AWEUserNameLabel —— 该版本已不渲染昵称，所以完全失效（日志实测一次都没执行）。
 %hook AWEBButton
 
+- (void)didMoveToWindow {
+	%orig;
+	// 首次打开（例如从历史记录进入）时，layoutSubviews 可能发生在视图尚未挂进窗口的时刻，
+	// 被下面的 window 判断挡掉、之后又不再布局 —— 于是"首次不生效"。
+	// 这里在挂进窗口的那一刻（层级已完整）再补一次。
+	[DYYYUtils applyFeedNicknameScaleForButton:(UIView *)(id)self];
+}
+
 - (void)layoutSubviews {
 	%orig;
-
-	NSString *dyScaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
-	CGFloat dyScale = dyScaleValue.length > 0 ? [dyScaleValue floatValue] : 1.0;
-	UIView *dySelf = (UIView *)(id)self;   // AWEBButton 在头文件里只是前向声明，属性访问需转成 UIView
-	if (dyScale <= 0 || dyScale == 1.0 || !dySelf.window) {
-		return;
-	}
-	// 只认「昵称」那个按钮：它的标签文字以 @ 开头。
-	// AWEBButton 是通用按钮类，抖音到处都在用 —— 不加这道判别会把所有按钮所在的块都缩掉。
-	BOOL dyIsNickname = NO;
-	for (UIView *dySub in dySelf.subviews) {
-		if ([dySub isKindOfClass:[UILabel class]]) {
-			NSString *dyText = [(UILabel *)dySub text];
-			if (dyText.length > 0 && [dyText hasPrefix:@"@"]) {
-				dyIsNickname = YES;
-				break;
-			}
-		}
-	}
-	if (!dyIsNickname) {
-		return;
-	}
-	// 往上三层 = 作者信息整块
-	UIView *dyBlock = dySelf.superview.superview.superview;
-	if (!dyBlock) {
-		return;
-	}
-	// 缓存抖音自己的基准变换，在其之上叠加缩放（不覆盖）
-	static char kDYYYFeedBlockBaseKey;
-	NSValue *dyBaseValue = objc_getAssociatedObject(dyBlock, &kDYYYFeedBlockBaseKey);
-	if (!dyBaseValue) {
-		dyBaseValue = [NSValue valueWithCGAffineTransform:dyBlock.transform];
-		objc_setAssociatedObject(dyBlock, &kDYYYFeedBlockBaseKey, dyBaseValue, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-	}
-	const CGFloat dyW = dyBlock.bounds.size.width;
-	const CGFloat dyTx = (dyW - dyW * dyScale) / -2.0;   // 左边缘钉住（内容左对齐）
-	CGAffineTransform dyWant = CGAffineTransformConcat(
-		CGAffineTransformConcat(CGAffineTransformMakeTranslation(dyTx, 0),
-		                        CGAffineTransformMakeScale(dyScale, dyScale)),
-		[dyBaseValue CGAffineTransformValue]);
-	if (!CGAffineTransformEqualToTransform(dyBlock.transform, dyWant)) {
-		dyBlock.transform = dyWant;
-	}
+	[DYYYUtils applyFeedNicknameScaleForButton:(UIView *)(id)self];
 }
 
 %end

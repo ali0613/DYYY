@@ -343,6 +343,13 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (void)logFeedNicknameScaleEntry:(NSString *)entry view:(UIView *)view;
 
+/**
+ * 首页「昵称文案缩放」（新版结构）：传入昵称按钮（AWEBButton），
+ * 内部判别（标签以 @ 开头）后，把它往上三层的「作者信息整块」按设置缩放，左边缘钉住。
+ * 供 layoutSubviews / didMoveToWindow 两个入口调用。
+ */
++ (void)applyFeedNicknameScaleForButton:(UIView *)button;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;
