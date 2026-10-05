@@ -12378,7 +12378,8 @@ static Class TagViewClass = nil;
     if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
         const CGFloat dyScale = DYYYGetFloat(@"DYYYNicknameScale");
         const CGFloat dyTarget = (dyScale == 0.0) ? 1.0 : MAX(0.01, dyScale);
-        for (UIView *dyRow in self.arrangedSubviews) {
+        NSArray *dyRows = [(UIStackView *)(id)self arrangedSubviews];   // 头文件未声明为 UIStackView，这里显式转换
+        for (UIView *dyRow in dyRows) {
             const CGFloat dyWidth = dyRow.bounds.size.width;
             CATransform3D dyT;
             if (dyTarget == 1.0) {
@@ -12616,7 +12617,8 @@ static Class TagViewClass = nil;
     if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
         const CGFloat dyScale = DYYYGetFloat(@"DYYYNicknameScale");
         const CGFloat dyTarget = (dyScale == 0.0) ? 1.0 : MAX(0.01, dyScale);
-        for (UIView *dyRow in self.arrangedSubviews) {
+        NSArray *dyRows = [(UIStackView *)(id)self arrangedSubviews];   // 头文件未声明为 UIStackView，这里显式转换
+        for (UIView *dyRow in dyRows) {
             const CGFloat dyWidth = dyRow.bounds.size.width;
             CATransform3D dyT;
             if (dyTarget == 1.0) {
