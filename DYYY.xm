@@ -2812,9 +2812,17 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
 %hook YYLabel
 
 // 1. Hook 富文本赋值方法 (核心)
+static BOOL gDYYYDescBoldApplyingYY = NO;
+
 - (void)setAttributedText:(NSAttributedString *)attributedText {
     if (!DYYYGetBool(@"DYYYCommentExactTime") || !attributedText || attributedText.length == 0) {
         %orig(attributedText);
+        // 文案字体加粗：抖音 40.x 的文案由 YYLabel 渲染，在文本写入的这一刻处理最稳
+        if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescBoldApplyingYY) {
+            gDYYYDescBoldApplyingYY = YES;
+            [DYYYUtils applyBoldFontRecursivelyInView:self];
+            gDYYYDescBoldApplyingYY = NO;
+        }
         return;
     }
 
@@ -4826,6 +4834,28 @@ static BOOL isGestureActive = NO;
 %end
 
 %hook UILabel
+
+// 文案字体加粗：普通 UILabel 路径（文案也可能渲染在描述容器里的普通标签上）
+static BOOL gDYYYDescBoldApplyingLB = NO;
+
+- (void)setAttributedText:(NSAttributedString *)attributedText {
+    %orig(attributedText);
+
+    if (!DYYYGetBool(@"DYYYBoldDescription") || gDYYYDescBoldApplyingLB) {
+        return;
+    }
+    // 只处理「文案」——祖先视图链里必须出现 Description 类，避免把评论/按钮等标签一起加粗
+    UIView *dyNode = self.superview;
+    for (int dyLevel = 0; dyLevel < 12 && dyNode; dyLevel++) {
+        if ([NSStringFromClass([dyNode class]) containsString:@"Description"]) {
+            gDYYYDescBoldApplyingLB = YES;
+            [DYYYUtils applyBoldFontRecursivelyInView:self];
+            gDYYYDescBoldApplyingLB = NO;
+            break;
+        }
+        dyNode = dyNode.superview;
+    }
+}
 
 - (void)setText:(NSString *)text {
     UIView *superview = self.superview;
