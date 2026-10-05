@@ -2389,11 +2389,17 @@ static BOOL gDYYYLiveCardScaling = NO;
                              OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
+// 直播卡片整块的上移量（pt）。由「行容器 layoutSubviews」那条路按当前底栏高度写入一次，
+// 其它入口（setTransform: / setAlpha: / didMoveToWindow 等）直接复用 ——
+// 否则 cell 复用时抖音重写 transform，重应用会漏掉位移，导致又压住底栏。
+static CGFloat gDYYYLiveCardShiftUp = 0.0;
+
 + (void)applyLiveCardScaleToStack:(UIView *)view {
-    [self applyLiveCardScaleToStack:view shiftUp:0.0];
+    [self applyLiveCardScaleToStack:view shiftUp:gDYYYLiveCardShiftUp];
 }
 
 + (void)applyLiveCardScaleToStack:(UIView *)view shiftUp:(CGFloat)shiftUp {
+    gDYYYLiveCardShiftUp = shiftUp;   // 记录最新值，供其它入口复用
     if (!view) {
         return;
     }
