@@ -30,6 +30,8 @@
 #import "DYYYUtils.h"
 
 static CGFloat gStartY = 0.0;
+// 文案加粗的防重入标志（文件级：文案的标签 hook 与滚动容器 hook 共用）
+static BOOL gDYYYDescBoldApplyingAll = NO;
 static CGFloat gStartVal = 0.0;
 static DYEdgeMode gMode = DYEdgeModeNone;
 static __weak UICollectionView *gFeedCV = nil;
@@ -3936,11 +3938,13 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
     //   setter 那道负责「先赋值」的顺序（第一时间加粗）；
     //   这里负责「抖音在我之后又赋值」的顺序（布局完成后再确认一次，把被覆盖的补回来）。
     // 幂等：已是粗体则跳过、值没变不回写 —— 不会反复加粗、不会死循环。
-    if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescriptionBoldApplying) {
-        gDYYYDescriptionBoldApplying = YES;
+    if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescBoldApplyingAll) {
+        gDYYYDescBoldApplyingAll = YES;
         [DYYYUtils applyBoldFontRecursivelyInView:self];
-        [self dyyy_directBoldFont];
-        gDYYYDescriptionBoldApplying = NO;
+        if ([self isKindOfClass:NSClassFromString(@"AWEPlayInteractionDescriptionLabel")]) {
+            [(id)self dyyy_directBoldFont];
+        }
+        gDYYYDescBoldApplyingAll = NO;
     }
 
     NSString *descriptionOffsetValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDescriptionVerticalOffset"];
@@ -4108,11 +4112,13 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
     //   setter 那道负责「先赋值」的顺序（第一时间加粗）；
     //   这里负责「抖音在我之后又赋值」的顺序（布局完成后再确认一次，把被覆盖的补回来）。
     // 幂等：已是粗体则跳过、值没变不回写 —— 不会反复加粗、不会死循环。
-    if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescriptionBoldApplying) {
-        gDYYYDescriptionBoldApplying = YES;
+    if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescBoldApplyingAll) {
+        gDYYYDescBoldApplyingAll = YES;
         [DYYYUtils applyBoldFontRecursivelyInView:self];
-        [self dyyy_directBoldFont];
-        gDYYYDescriptionBoldApplying = NO;
+        if ([self isKindOfClass:NSClassFromString(@"AWEPlayInteractionDescriptionLabel")]) {
+            [(id)self dyyy_directBoldFont];
+        }
+        gDYYYDescBoldApplyingAll = NO;
     }
 
     NSString *descriptionOffsetValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDescriptionVerticalOffset"];
