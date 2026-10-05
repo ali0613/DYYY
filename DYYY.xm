@@ -7964,6 +7964,35 @@ static NSHashTable *processedParentViews = nil;
 	// 行容器的 layoutSubviews 是「宽度已确定」的可靠时机（实测会触发）：
 	// 借它作为入口，去缩放它的 superview —— 也就是包含全部行的那层最内层 IESLiveStackView。
 	[DYYYUtils applyLiveCardScaleToStack:(UIView *)self.superview];
+
+	// 直播卡片上的「相关搜索」行：整条链都是通用类（容器 → AWEBaseElementView → UIView → UILabel）
+	// ，没有专属类名可挂，只能按内容识别：高度约 40 且内部标签文字以「相关搜索」开头 → 整行隐藏。
+	// 受既有开关 DYYYHideInteractionSearch 控制，关闭时完全不动。
+	if (DYYYGetBool(@"DYYYHideInteractionSearch")) {
+		const CGFloat dyRowHeight = self.bounds.size.height;
+		if (dyRowHeight >= 30 && dyRowHeight <= 50) {
+			NSMutableArray *dyQueue = [NSMutableArray arrayWithObject:self];
+			int dyGuard = 0;
+			BOOL dyMatched = NO;
+			while (dyQueue.count > 0 && dyGuard++ < 20 && !dyMatched) {
+				UIView *dyNode = dyQueue.lastObject;
+				[dyQueue removeLastObject];
+				if ([dyNode isKindOfClass:[UILabel class]]) {
+					NSString *dyText = [(UILabel *)dyNode text];
+					if (dyText.length > 0 && [dyText hasPrefix:@"相关搜索"]) {
+						dyMatched = YES;
+						break;
+					}
+				}
+				for (UIView *dySub in dyNode.subviews) {
+					[dyQueue addObject:dySub];
+				}
+			}
+			if (dyMatched) {
+				self.hidden = YES;
+			}
+		}
+	}
 }
 
 %end
