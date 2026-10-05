@@ -364,6 +364,16 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (void)fixStaleLandscapeLayoutForView:(UIView *)view;
 
+/**
+ * 「启用首页全屏」改高度时统一走这里：会先记住抖音自己的高度（只记抖音写的值，不记我们自己写的），
+ * 供方向切回竖屏时还原 —— 先还原、再让抖音按自己的尺子重排，从根上避免"首次自动翻转后元素错乱"。
+ */
++ (void)applyFullScreenHeight:(CGFloat)height toView:(UIView *)view;
+/** 把上面缓存过的抖音原高度写回去（没有缓存则不动） */
++ (void)restoreFullScreenHeightForView:(UIView *)view;
+/** 还原所有被改过高度的视图（方向切回竖屏时调用） */
++ (void)restoreAllFullScreenHeights;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;

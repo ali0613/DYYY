@@ -2448,6 +2448,56 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
 static BOOL gDYYYFeedNicknameScaleApplying = NO;
 static char kDYYYFeedEntryBaseTransformKey;
 
+// 「启用首页全屏」改过的视图：弱引用登记，方向切回竖屏时统一还原
+static NSHashTable *gDYYYFullScreenTouchedViews = nil;
+static char kDYYYFullScreenOriginalHeightKey;
+static char kDYYYFullScreenLastWrittenKey;
+
++ (void)applyFullScreenHeight:(CGFloat)height toView:(UIView *)view {
+    if (!view) {
+        return;
+    }
+    static dispatch_once_t onceToken2;
+    dispatch_once(&onceToken2, ^{
+        gDYYYFullScreenTouchedViews = [NSHashTable weakObjectsHashTable];
+    });
+    // 当前高度若不是我们上次写进去的值，说明那是抖音自己的值 → 缓存下来
+    NSNumber *lastWritten = objc_getAssociatedObject(view, &kDYYYFullScreenLastWrittenKey);
+    if (!lastWritten || fabs(view.frame.size.height - lastWritten.doubleValue) > 0.5) {
+        objc_setAssociatedObject(view, &kDYYYFullScreenOriginalHeightKey,
+                                 @(view.frame.size.height), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    CGRect frame = view.frame;
+    frame.size.height = height;
+    view.frame = frame;
+    objc_setAssociatedObject(view, &kDYYYFullScreenLastWrittenKey,
+                             @(height), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    [gDYYYFullScreenTouchedViews addObject:view];
+}
+
++ (void)restoreFullScreenHeightForView:(UIView *)view {
+    if (!view) {
+        return;
+    }
+    NSNumber *original = objc_getAssociatedObject(view, &kDYYYFullScreenOriginalHeightKey);
+    if (!original) {
+        return;   // 没改过就别动
+    }
+    CGRect frame = view.frame;
+    frame.size.height = original.doubleValue;
+    view.frame = frame;
+    [view setNeedsLayout];
+}
+
++ (void)restoreAllFullScreenHeights {
+    if (!gDYYYFullScreenTouchedViews) {
+        return;
+    }
+    for (UIView *view in gDYYYFullScreenTouchedViews.allObjects) {
+        [self restoreFullScreenHeightForView:view];
+    }
+}
+
 + (void)fixStaleLandscapeLayoutForView:(UIView *)view {
     if (!view) {
         return;
@@ -2469,6 +2519,8 @@ static char kDYYYFeedEntryBaseTransformKey;
                 if (keyWindow.bounds.size.width > keyWindow.bounds.size.height) {
                     return;   // 横屏：不干预
                 }
+                // 先把全屏化改过的高度还原成抖音自己的值，再踹一次布局 —— 让抖音用自己的尺子重排
+                [DYYYUtils restoreAllFullScreenHeights];
                 [keyWindow setNeedsLayout];
                 [keyWindow layoutIfNeeded];
             });
