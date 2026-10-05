@@ -4160,13 +4160,14 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 
 	NSString *dyScaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
 	CGFloat dyScale = dyScaleValue.length > 0 ? [dyScaleValue floatValue] : 1.0;
-	if (dyScale <= 0 || dyScale == 1.0 || !self.window) {
+	UIView *dySelf = (UIView *)(id)self;   // AWEBButton 在头文件里只是前向声明，属性访问需转成 UIView
+	if (dyScale <= 0 || dyScale == 1.0 || !dySelf.window) {
 		return;
 	}
 	// 只认「昵称」那个按钮：它的标签文字以 @ 开头。
 	// AWEBButton 是通用按钮类，抖音到处都在用 —— 不加这道判别会把所有按钮所在的块都缩掉。
 	BOOL dyIsNickname = NO;
-	for (UIView *dySub in self.subviews) {
+	for (UIView *dySub in dySelf.subviews) {
 		if ([dySub isKindOfClass:[UILabel class]]) {
 			NSString *dyText = [(UILabel *)dySub text];
 			if (dyText.length > 0 && [dyText hasPrefix:@"@"]) {
@@ -4179,7 +4180,7 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 		return;
 	}
 	// 往上三层 = 作者信息整块
-	UIView *dyBlock = self.superview.superview.superview;
+	UIView *dyBlock = dySelf.superview.superview.superview;
 	if (!dyBlock) {
 		return;
 	}
