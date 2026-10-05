@@ -2398,13 +2398,9 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
                     if (traits & UIFontDescriptorTraitBold) {
                         return;
                     }
-                    // 抖音文案用的是 .SFUI-Regular 这类私有字体：走描述符常返回「同款常规体」，
-                    // 所以必须校验结果真的变粗，否则用系统粗体兜底。
-                    UIFontDescriptor *desc = [base.fontDescriptor fontDescriptorWithSymbolicTraits:(traits | UIFontDescriptorTraitBold)];
-                    UIFont *boldFont = desc ? [UIFont fontWithDescriptor:desc size:base.pointSize] : nil;
-                    if (boldFont && !(boldFont.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
-                        boldFont = nil;
-                    }
+                    // 用 PingFangSC-Medium 直接指定字体名（真机实测有效）；
+                    // 描述符那条路对 .SFUI-Regular 这类私有字体只会返回同款常规体，不可靠。
+                    UIFont *boldFont = [UIFont fontWithName:@"PingFangSC-Medium" size:base.pointSize];
                     if (!boldFont) {
                         boldFont = [UIFont boldSystemFontOfSize:base.pointSize];
                     }
@@ -2417,11 +2413,7 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
                 NSString *plain = [target text];
                 UIFont *base = [target font];
                 if (plain.length > 0 && base && !(base.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
-                    UIFontDescriptor *desc = [base.fontDescriptor fontDescriptorWithSymbolicTraits:(base.fontDescriptor.symbolicTraits | UIFontDescriptorTraitBold)];
-                    UIFont *boldFont = desc ? [UIFont fontWithDescriptor:desc size:base.pointSize] : nil;
-                    if (boldFont && !(boldFont.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
-                        boldFont = nil;
-                    }
+                    UIFont *boldFont = [UIFont fontWithName:@"PingFangSC-Medium" size:base.pointSize];
                     if (!boldFont) {
                         boldFont = [UIFont boldSystemFontOfSize:base.pointSize];
                     }

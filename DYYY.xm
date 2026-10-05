@@ -2817,8 +2817,6 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
 - (void)setAttributedText:(NSAttributedString *)attributedText {
     if (!DYYYGetBool(@"DYYYCommentExactTime") || !attributedText || attributedText.length == 0) {
         %orig(attributedText);
-        // ⚠️ 诊断标记：YYLabel 层的 setAttributedText: 若被执行，文字块会带蓝色底
-        ((UIView *)(id)self).backgroundColor = [UIColor colorWithRed:0.0 green:0.4 blue:1.0 alpha:0.35];
         // 文案字体加粗：抖音 40.x 的文案由 YYLabel 渲染，在文本写入的这一刻处理最稳
         if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescBoldApplyingYY) {
             gDYYYDescBoldApplyingYY = YES;
@@ -3971,9 +3969,7 @@ static BOOL gDYYYDescriptionBoldApplying = NO;
 
 - (void)setAttributedText:(NSAttributedString *)attributedText {
 	%orig(attributedText);
-	// ⚠️ 诊断标记：文案标签的 setter 若被执行，文字块会带红色底 —— 用颜色判断 hook 是否真的在跑
-	self.backgroundColor = [UIColor colorWithRed:1.0 green:0.0 blue:0.0 alpha:0.35];
-	if (!gDYYYDescriptionBoldApplying) {
+	if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescriptionBoldApplying) {
 		gDYYYDescriptionBoldApplying = YES;
 		[DYYYUtils applyBoldFontRecursivelyInView:self];
 		[self dyyy_directBoldFont];
@@ -3983,9 +3979,7 @@ static BOOL gDYYYDescriptionBoldApplying = NO;
 
 - (void)setText:(NSString *)text {
 	%orig(text);
-	// ⚠️ 诊断标记：同上（红色底）
-	self.backgroundColor = [UIColor colorWithRed:1.0 green:0.0 blue:0.0 alpha:0.35];
-	if (!gDYYYDescriptionBoldApplying) {
+	if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescriptionBoldApplying) {
 		gDYYYDescriptionBoldApplying = YES;
 		[DYYYUtils applyBoldFontRecursivelyInView:self];
 		[self dyyy_directBoldFont];
@@ -4011,16 +4005,12 @@ static BOOL gDYYYDescriptionBoldApplying = NO;
 	UIFontDescriptorSymbolicTraits dyTraits = dyFont.fontDescriptor.symbolicTraits;
 	UIFont *dyBoldFont = nil;
 	if (!(dyTraits & UIFontDescriptorTraitBold)) {
-		// 先试描述符（保留字族）——但抖音文案用的是 .SFUI-Regular 这类私有字体，
-		// 该路子常常返回「同款常规体」，所以必须校验结果，失败就走系统粗体兜底。
-		UIFontDescriptor *dyDesc = [dyFont.fontDescriptor fontDescriptorWithSymbolicTraits:(dyTraits | UIFontDescriptorTraitBold)];
-		UIFont *dyCandidate = dyDesc ? [UIFont fontWithDescriptor:dyDesc size:dyFont.pointSize] : nil;
-		if (dyCandidate && (dyCandidate.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
-			dyBoldFont = dyCandidate;
-		}
+		// 直接指定 PingFangSC-Medium（真机 FLEX 实测有效）；
+		// 描述符那条路对 .SFUI-Regular 这类私有字体只会返回同款常规体，不可靠。
+		dyBoldFont = [UIFont fontWithName:@"PingFangSC-Medium" size:dyFont.pointSize];
 	}
 	if (!dyBoldFont) {
-		dyBoldFont = [UIFont boldSystemFontOfSize:dyFont.pointSize];   // 必定是粗体
+		dyBoldFont = [UIFont boldSystemFontOfSize:dyFont.pointSize];
 	}
 	NSMutableAttributedString *dyAttr = [[NSMutableAttributedString alloc] initWithString:dyPlain];
 	[dyAttr addAttribute:NSFontAttributeName value:dyBoldFont range:NSMakeRange(0, dyPlain.length)];
