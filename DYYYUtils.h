@@ -306,6 +306,14 @@ NS_ASSUME_NONNULL_BEGIN
  * 只替换字体本身（addAttribute），保留话题高亮等其它富文本属性；已是粗体则跳过（幂等）。
  * 用于「文案字体加粗」——抖音 40.x 的文案既可能直接是标签，也可能包在滚动容器里。
  */
+/**
+ * 首页直播卡片（信息流里的「直播中」卡片）中「徽标 + 昵称 + 文案」整块缩放。
+ * 只处理 superview 为 IESLiveLayoutContainerView 的那个 IESLiveStackView；
+ * 抖音自带 transform 会被缓存后叠加（不覆盖），非目标 / 未启用时恢复原状。
+ * 供 setFrame: / didMoveToSuperview / didMoveToWindow / layoutSubviews 多个入口调用。
+ */
++ (void)applyLiveCardScaleToStack:(UIView *)stack;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;

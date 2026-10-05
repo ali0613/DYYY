@@ -2372,6 +2372,41 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
     }
 }
 
++ (void)applyLiveCardScaleToStack:(UIView *)stack {
+    if (!stack) {
+        return;
+    }
+    // 缓存抖音给该视图设置的原始变换（直播卡片上它自带 (0,-20) 上移）：只叠加，不覆盖。
+    static char kDYYYLiveCardScaleOriginalKey;
+    NSValue *orig = objc_getAssociatedObject(stack, &kDYYYLiveCardScaleOriginalKey);
+    if (!orig) {
+        orig = [NSValue valueWithCGAffineTransform:stack.transform];
+        objc_setAssociatedObject(stack, &kDYYYLiveCardScaleOriginalKey, orig, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    CGAffineTransform base = [orig CGAffineTransformValue];
+
+    // FLEX 现场确认：只有 superview 为 IESLiveLayoutContainerView 的那个 stack 才是
+    //「徽标 + 昵称 + 文案」的容器；信息流卡片最外层另有一个同类 stack（行是整个底部区域）。
+    BOOL isTarget = [stack.superview isKindOfClass:NSClassFromString(@"IESLiveLayoutContainerView")];
+    const CGFloat scale = DYYYGetFloat(@"DYYYNicknameScale");
+
+    CGAffineTransform want;
+    if (!isTarget || scale == 0.0) {
+        want = base;   // 非目标 / 未启用：恢复原状，避免残留
+    } else {
+        const CGFloat target = MAX(0.01, scale);
+        const CGFloat width = stack.bounds.size.width;
+        const CGFloat tx = (width - width * target) / -2.0;   // 负值：把左边缘拉回原位
+        want = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
+                                       CGAffineTransformMakeScale(target, target));
+        want = CGAffineTransformConcat(want, base);
+    }
+
+    if (!CGAffineTransformEqualToTransform(stack.transform, want)) {
+        stack.transform = want;
+    }
+}
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root {
     if (!root) {
         return;

@@ -12354,6 +12354,11 @@ static Class TagViewClass = nil;
 
 - (void)didMoveToWindow {
     %orig;
+    // 直播卡片缩放：目标 stack 的 layoutSubviews 可能一次都不跑（frame 由父视图设定），
+    // 这里补一个更早、必然触发的入口；类名判断保证其它类不受影响。
+    if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
+        [DYYYUtils applyLiveCardScaleToStack:self];
+    }
     if (self.window) {
         [self dyyy_applyGlobalTransparency];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(dyyy_applyGlobalTransparency) name:kDYYYGlobalTransparencyDidChangeNotification object:nil];
@@ -12376,34 +12381,9 @@ static Class TagViewClass = nil;
     // 行视图是普通视图，用 layer.transform 既不会改变 frame（UIStackView 布局无感知、不会反复叠加），
     // 也不会被覆盖。每行各自把左边缘钉住，视觉上就是整块一起缩。
     // 直播卡片（信息流里的「直播中」卡片）中「徽标 + 昵称 + 文案」的整块缩放。
-    // 只处理 superview 为 IESLiveLayoutContainerView 的那个 IESLiveStackView ——
-    // FLEX 现场确认：它才是徽标/昵称/文案的容器；而信息流卡片最外层另有一个 IESLiveStackView
-    //（它的"行"是整个底部区域），若不加这道判别就会把底部整片区域一起缩小。
+    // 具体判别与计算见 DYYYUtils applyLiveCardScaleToStack:（只处理目标 stack，其它恢复原状）。
     if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
-        NSValue *dyOrigTransform = objc_getAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey);
-        if (!dyOrigTransform) {
-            dyOrigTransform = [NSValue valueWithCGAffineTransform:self.transform];   // 缓存抖音自带的 (0,-20)
-            objc_setAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey, dyOrigTransform, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-        CGAffineTransform dyBase = [dyOrigTransform CGAffineTransformValue];
-
-        BOOL dyIsTarget = [self.superview isKindOfClass:NSClassFromString(@"IESLiveLayoutContainerView")];
-        const CGFloat dyScale = DYYYGetFloat(@"DYYYNicknameScale");
-        if (!dyIsTarget || dyScale == 0.0) {
-            if (!CGAffineTransformEqualToTransform(self.transform, dyBase)) {
-                self.transform = dyBase;   // 非目标 / 未启用：恢复原状，避免残留
-            }
-        } else {
-            const CGFloat dyTarget = MAX(0.01, dyScale);
-            const CGFloat dyWidth = self.bounds.size.width;
-            const CGFloat dyTx = (dyWidth - dyWidth * dyTarget) / -2.0;   // 负值：把左边缘拉回原位
-            CGAffineTransform dyT = CGAffineTransformConcat(CGAffineTransformMakeTranslation(dyTx, 0),
-                                                            CGAffineTransformMakeScale(dyTarget, dyTarget));
-            dyT = CGAffineTransformConcat(dyT, dyBase);   // 叠加抖音自带变换，不覆盖
-            if (!CGAffineTransformEqualToTransform(self.transform, dyT)) {
-                self.transform = dyT;
-            }
-        }
+        [DYYYUtils applyLiveCardScaleToStack:self];
     }
 
     UIViewController *viewController = [DYYYUtils firstAvailableViewControllerFromView:self];
@@ -12604,6 +12584,11 @@ static Class TagViewClass = nil;
 
 - (void)didMoveToWindow {
     %orig;
+    // 直播卡片缩放：目标 stack 的 layoutSubviews 可能一次都不跑（frame 由父视图设定），
+    // 这里补一个更早、必然触发的入口；类名判断保证其它类不受影响。
+    if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
+        [DYYYUtils applyLiveCardScaleToStack:self];
+    }
     if (self.window) {
         [self dyyy_applyGlobalTransparency];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(dyyy_applyGlobalTransparency) name:kDYYYGlobalTransparencyDidChangeNotification object:nil];
@@ -12626,34 +12611,9 @@ static Class TagViewClass = nil;
     // 行视图是普通视图，用 layer.transform 既不会改变 frame（UIStackView 布局无感知、不会反复叠加），
     // 也不会被覆盖。每行各自把左边缘钉住，视觉上就是整块一起缩。
     // 直播卡片（信息流里的「直播中」卡片）中「徽标 + 昵称 + 文案」的整块缩放。
-    // 只处理 superview 为 IESLiveLayoutContainerView 的那个 IESLiveStackView ——
-    // FLEX 现场确认：它才是徽标/昵称/文案的容器；而信息流卡片最外层另有一个 IESLiveStackView
-    //（它的"行"是整个底部区域），若不加这道判别就会把底部整片区域一起缩小。
+    // 具体判别与计算见 DYYYUtils applyLiveCardScaleToStack:（只处理目标 stack，其它恢复原状）。
     if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
-        NSValue *dyOrigTransform = objc_getAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey);
-        if (!dyOrigTransform) {
-            dyOrigTransform = [NSValue valueWithCGAffineTransform:self.transform];   // 缓存抖音自带的 (0,-20)
-            objc_setAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey, dyOrigTransform, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-        CGAffineTransform dyBase = [dyOrigTransform CGAffineTransformValue];
-
-        BOOL dyIsTarget = [self.superview isKindOfClass:NSClassFromString(@"IESLiveLayoutContainerView")];
-        const CGFloat dyScale = DYYYGetFloat(@"DYYYNicknameScale");
-        if (!dyIsTarget || dyScale == 0.0) {
-            if (!CGAffineTransformEqualToTransform(self.transform, dyBase)) {
-                self.transform = dyBase;   // 非目标 / 未启用：恢复原状，避免残留
-            }
-        } else {
-            const CGFloat dyTarget = MAX(0.01, dyScale);
-            const CGFloat dyWidth = self.bounds.size.width;
-            const CGFloat dyTx = (dyWidth - dyWidth * dyTarget) / -2.0;   // 负值：把左边缘拉回原位
-            CGAffineTransform dyT = CGAffineTransformConcat(CGAffineTransformMakeTranslation(dyTx, 0),
-                                                            CGAffineTransformMakeScale(dyTarget, dyTarget));
-            dyT = CGAffineTransformConcat(dyT, dyBase);   // 叠加抖音自带变换，不覆盖
-            if (!CGAffineTransformEqualToTransform(self.transform, dyT)) {
-                self.transform = dyT;
-            }
-        }
+        [DYYYUtils applyLiveCardScaleToStack:self];
     }
 
     UIViewController *viewController = [DYYYUtils firstAvailableViewControllerFromView:self];
@@ -12947,6 +12907,11 @@ static Class TagViewClass = nil;
 
 - (void)didMoveToWindow {
     %orig;
+    // 直播卡片缩放：目标 stack 的 layoutSubviews 可能一次都不跑（frame 由父视图设定），
+    // 这里补一个更早、必然触发的入口；类名判断保证其它类不受影响。
+    if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
+        [DYYYUtils applyLiveCardScaleToStack:self];
+    }
     if (self.window) {
         [self dyyy_applyGlobalTransparency];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(dyyy_applyGlobalTransparency) name:kDYYYGlobalTransparencyDidChangeNotification object:nil];
