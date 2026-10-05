@@ -182,3 +182,52 @@ EXC_BREAKPOINT (SIGTRAP) → libswiftCore._assertionFailure → _bridgeCocoaStri
 > `/var/containers/Bundle/Application/.jbroot-<systemhook 后缀>/Library/MobileSubstrate/DynamicLibraries/`；
 > 用同名 `.disabled` 后缀可临时停用某个 dylib（排查是否由 tweak 引起时很好用）。
 
+## 十、直播卡片（信息流里的「直播中」卡片）经验
+
+（2026-10 实录，抖音 40.6.0 / iOS 16.1.1；全部由 FLEX 现场定位得出）
+
+### 视图结构（FLEX 确认）
+
+`IESLiveStackView` 与 `IESLiveLayoutContainerView` **逐层嵌套**（各三四层，"徽标/昵称/文案/底部行"
+都是 `IESLiveLayoutContainerView` 行容器）；最外层还有一个**全宽容器**。
+两个按钮「点击进入直播间 / 翻转」同属 **`AWELivePrestreamGuideView`**，superview 为 `AWEBaseElementView`。
+
+### 缩放（「昵称文案缩放」在直播卡片上生效）
+
+1. **缩 stack 自身无效** ✗（transform 会被上层布局或自身逻辑改写）；有效的是**行容器**或**包含全部行的最内层 stack**。
+2. **`UIStackView` 子树不要用 `UIView.transform`**：stack 会按"缩放后的 frame"重新布局，比例被反复叠加
+   （0.8 看起来像 0.5）；要用 **`layer.transform`**（不参与布局）。
+3. **必须按对齐方式补偿**（transform 绕中心缩放）：
+   - 左对齐内容 → `tx = (w − w×s) / -2`
+   - 顶对齐内容 → `ty = (h − h×s) / -2`
+   - **居中按钮不能补平移** ✗（补了会被推偏）
+4. **时机**：`layoutSubviews` / `didMoveToWindow` 在这个 stack 上**都不触发**；
+   可靠入口是**行容器自己的 `layoutSubviews`**（此时宽度已确定）。早期入口会因宽度为 0 被跳过。
+5. **cell 复用**：抖音会重写 `setTransform:` → 必须**接管它**，把抖音写入的值当**新基准**并**立刻重应用**；
+   否则 (a) 基准过期 → 位置偏移，(b) 要等下次布局 → 划回来能看到"缩放过程"。
+   重应用时**位移量要记住**（放在工具层状态里），否则复用后位移被抹掉。
+6. **判别目标别看 superview**：同类视图层层嵌套，superview 判断会命中**空 stack（404×0）**；
+   要看**实际内容**（如直接子视图里有没有高度 ≤40 的行容器）。
+
+### 相关搜索（直播卡片上不生效的那条）
+
+直播卡片的「相关搜索」**没有专属类名** ✗ —— 整条链都是通用类
+（`IESLiveLayoutContainerView` → `AWEBaseElementView` → `UIView` → `UILabel`），
+只能**按文字内容识别**（行高 30~50 且内部 `UILabel` 以「相关搜索」开头），复用既有开关 `DYYYHideInteractionSearch`。
+
+### 整块上移（让开底栏）
+
+复用「首页全屏化」那套：上移量 = **`gCurrentTabBarHeight`**，条件跟随 `DYYYEnableFullScreen`，**不额外加设置项**。
+
+## 十一、文案字体加粗（补充）
+
+抖音 40.x 的文案是 **`YYLabel` 系**（layer 为 `YYTextAsyncLayer`）：改 `font` 属性**不生效** ✗，
+必须**重建 attributedText**（用 `addAttribute:` 只换字体，保留话题高亮等属性；已粗体则跳过 → 幂等）。
+
+且字体名是 **`.SFUI-Regular`（苹果私有名）** —— `fontDescriptorWithSymbolicTraits:` 对它
+**只会返回同款常规体** ✗（不报错也不变粗）。必须直接指定字体名 **`PingFangSC-Medium`**（真机 FLEX 实测），
+否则用 `boldSystemFontOfSize:` 兜底。
+
+> 文案有两处 hook（`AWEPlayInteractionDescriptionLabel` 与 `AWEPlayInteractionDescriptionScrollView`），
+> 绑定时机不固定：setter 负责"先赋值"的顺序，`layoutSubviews` 负责"抖音后赋值覆盖"的顺序，两道都要有。
+
