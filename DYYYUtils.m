@@ -2539,23 +2539,44 @@ static char kDYYYFullScreenLastWrittenKey;
     if (CGRectGetMaxX(view.frame) <= winWidth + 1.0) {
         return;
     }
-    // 往上找第一个「宽度仍按横屏算」的祖先：它就是那把错尺子的来源
-    UIView *target = nil;
-    UIView *ancestor = view.superview;
-    for (int level = 0; level < 8 && ancestor; level++) {
-        if (ancestor.bounds.size.width > winWidth + 1.0) {
-            target = ancestor;
-            break;
+    // ⚠️ 一次性诊断：冷启动后第一次检测到"竖屏下元素跑到窗口外"时，
+    // 把这一个元素的**整条祖先链**（每层的 frame/bounds/类名）写下来 —— 错的"尺子"就在链上某一层。
+    static BOOL dyChainDumped = NO;
+    if (!dyChainDumped) {
+        dyChainDumped = YES;
+        NSMutableString *chain = [NSMutableString string];
+        [chain appendFormat:@"=== 竖屏 win=%@ ===\n[元素] %@ frame=%@ bounds=%@\n",
+            NSStringFromCGRect(win.bounds),
+            NSStringFromClass([view class]),
+            NSStringFromCGRect(view.frame),
+            NSStringFromCGRect(view.bounds)];
+        UIView *dyChainNode = view.superview;
+        for (int level = 0; level < 14 && dyChainNode; level++) {
+            [chain appendFormat:@"  ↑%d %@ frame=%@ bounds=%@\n", level,
+                NSStringFromClass([dyChainNode class]),
+                NSStringFromCGRect(dyChainNode.frame),
+                NSStringFromCGRect(dyChainNode.bounds)];
+            dyChainNode = dyChainNode.superview;
         }
-        ancestor = ancestor.superview;
+        NSString *chainPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"dyyy-chain.txt"];
+        [chain writeToFile:chainPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
     }
-    if (!target) {
-        target = view.superview;
+
+    // 往上找「仍然按横屏尺寸」的**最外层**那一层 —— 链实测是 AWELandscapeMediumVideoPlayerCell
+    //（抖音在翻回竖屏后没把它改回尺寸，它下面所有元素于是全按横屏坐标排）。
+    UIView *topStale = nil;
+    UIView *node = view;
+    for (int level = 0; level < 12 && node; level++) {
+        if (node.bounds.size.width > winWidth + 1.0) {
+            topStale = node;
+        }
+        node = node.superview;
     }
+    UIView *target = topStale ?: view.superview;
     if (!target) {
         return;
     }
-    // 限流：同一个容器 2 秒内只强制重排一次 —— 万一重排没治好，也不至于变成"每次布局都重排"的循环。
+    // 限流：同一个容器 2 秒内只修一次 —— 万一没治好，也不至于变成"每次布局都修"的循环。
     static char kLastFixKey;
     NSNumber *last = objc_getAssociatedObject(target, &kLastFixKey);
     NSTimeInterval now = [NSDate date].timeIntervalSince1970;
@@ -2563,10 +2584,16 @@ static char kDYYYFullScreenLastWrittenKey;
         return;
     }
     objc_setAssociatedObject(target, &kLastFixKey, @(now), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    // 下一帧再动（此刻正在布局中，避免重入）；重设一次 frame 触发抖音自己的重排逻辑
+
+    const CGSize winSize = win.bounds.size;
+    // 下一帧再动（此刻正在布局中，避免重入）：把它按竖屏窗口尺寸摆正，再走它自己的重排
     dispatch_async(dispatch_get_main_queue(), ^{
-        CGRect frame = target.frame;
-        target.frame = frame;
+        if (fabs(target.frame.size.width - winSize.width) > 1.0 ||
+            fabs(target.frame.size.height - winSize.height) > 1.0) {
+            CGRect frame = target.frame;
+            frame.size = winSize;
+            target.frame = frame;
+        }
         [target setNeedsLayout];
         [target layoutIfNeeded];
     });
