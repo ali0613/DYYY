@@ -9755,6 +9755,20 @@ static BOOL gDYYYElementShiftApplying = NO;
 		}
 	}
 
+	// 「昵称文案缩放」：挂在这里的原因 —— AWEBButton 的 layoutSubviews / didMoveToWindow
+	// 在"从历史记录首次打开"时一次都不触发（诊断实测无任何记录），而 AWEBaseElementView 的
+	// layoutSubviews 一定会跑（汽水提醒条就在这段里处理）。找到那个以 @ 开头的昵称按钮，
+	// 交给 DYYYUtils 去缩放它的三层之上的「作者信息整块」。
+	if (self.window) {
+		for (UIView *dyChild in self.subviews) {
+			for (UIView *dyBtn in dyChild.subviews) {
+				if ([NSStringFromClass([dyBtn class]) containsString:@"AWEBButton"]) {
+					[DYYYUtils applyFeedNicknameScaleForButton:dyBtn];
+				}
+			}
+		}
+	}
+
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
