@@ -9643,27 +9643,27 @@ static BOOL gDYYYElementShiftApplying = NO;
 }
 
 - (void)layoutSubviews {
-	[DYYYUtils logFeedNicknameScaleEntry:@"layoutSubviews前" view:self];   // ⚠️ 临时诊断
 	%orig;
 
-	// 「昵称文案缩放」：位置有两个讲究 ✗
-	//   1. 必须在 %orig **之后** —— 否则抖音的布局会紧跟着把 transform 重置掉，等于没写；
-	//   2. 必须在下面那段「右侧栏上移」的提前 return **之前** —— 那段要求 self.window，
-	//      而复用时视图可能还没挂窗口，一旦提前 return 这里就永远执行不到。
-	// 另外只写给**已挂到窗口上**的视图：这个类不止昵称在用（右侧按钮、底部行也是它），
-	// 给预创建视图写缩放会污染抖音自己的布局。
+	// 「昵称文案缩放」——唯一写入点，三条讲究 ✗：
+	//   1. 必须在 %orig **之后**（抖音布局会重置 transform，写在前面等于没写）；
+	//   2. 必须在下面「右侧栏上移」的提前 return **之前**（那段要求 self.window，复用时可能还没挂窗口）；
+	//   3. 只写给**已挂到窗口上**的视图（这个类也被右侧按钮/底部行使用，预创建视图不能写）。
+	// 另外：缩放是绕中心做的，而文字是左对齐的 —— 不加左边缘补偿就会整体"偏右"，所以要补 tx。
 	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
 	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
 	if (self.window) {
 		gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
 		if (scale > 0 && scale != 1.0) {
-			self.transform = CGAffineTransformMakeScale(scale, scale);
+			const CGFloat width = self.bounds.size.width;
+			const CGFloat tx = (width - width * scale) / -2.0;   // 负值：把左边缘钉回原位
+			self.transform = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
+			                                         CGAffineTransformMakeScale(scale, scale));
 		} else {
 			self.transform = CGAffineTransformIdentity;
 		}
 		gDYYYFeedNicknameScaling = NO;
 	}
-	[DYYYUtils logFeedNicknameScaleEntry:@"layoutSubviews后" view:self];   // ⚠️ 临时诊断
 
 	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
 	// 挂既有开关「隐藏去汽水听」DYYYHideQuqishuiting，不新增设置项；
@@ -13012,43 +13012,6 @@ static Class TagViewClass = nil;
 
 %hook AWELandscapeFeedEntryView
 
-- (void)setFrame:(CGRect)frame {
-	[DYYYUtils logFeedNicknameScaleEntry:@"setFrame" view:self];   // ⚠️ 临时诊断
-	%orig(frame);
-	// 「昵称文案缩放」的第二个补套入口。
-	// 无文案的视频复用时，抖音可能**不写 transform**（那样 setTransform: 就不会触发），
-	// 但一定会重新摆 frame —— 所以这里也补一次。
-	// 直接把当前 transform 回灌一次，复用 setTransform: 里那套逻辑，避免重复代码。
-	// 但同样只对「已挂到窗口上」的视图动手（预创建阶段写入会污染抖音布局）。
-	if (!gDYYYFeedNicknameScaling && self.window) {
-		self.transform = self.transform;
-	}
-}
-
-- (void)setTransform:(CGAffineTransform)transform {
-	[DYYYUtils logFeedNicknameScaleEntry:@"setTransform" view:self];   // ⚠️ 临时诊断
-	%orig(transform);
-
-	// 「昵称文案缩放」的补套入口。
-	// 抖音在 cell 复用时会把 transform 重置掉；有文案的视频因为布局会重跑，
-	// layoutSubviews 里那段缩放会重新生效 —— 而**无文案的视频**复用时内部没有变化、
-	// 布局不重跑，缩放就丢了。这里在抖音写入的那一刻立刻补回来。
-	if (gDYYYFeedNicknameScaling) {
-		return;   // 是 DYYY 自己写的，忽略
-	}
-	if (!self.window) {
-		return;   // 还没挂到窗口（预创建/复用阶段）：不干预，否则会污染抖音自己的布局
-	}
-	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
-	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
-	if (scale <= 0 || scale == 1.0) {
-		return;   // 未启用缩放：不干预抖音的变换
-	}
-	gDYYYFeedNicknameScaling = YES;
-	self.transform = CGAffineTransformMakeScale(scale, scale);
-	gDYYYFeedNicknameScaling = NO;
-}
-
 - (void)setAlpha:(CGFloat)alpha {
     // 直播卡片缩放：实测 layoutSubviews / didMoveToWindow 在该视图上都不触发，
     // 而本方法（全局透明度）确实在执行（FLEX 里 alpha 0.9 就是证据）—— 借用这个必然触发的入口。
@@ -13107,17 +13070,6 @@ static Class TagViewClass = nil;
     if (self.superview) {
         [self.superview bringSubviewToFront:self];
     }
-
-    NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
-    CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
-    gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
-    if (scale > 0 && scale != 1.0) {
-        self.transform = CGAffineTransformMakeScale(scale, scale);
-    } else {
-        self.transform = CGAffineTransformIdentity;
-    }
-    gDYYYFeedNicknameScaling = NO;
-    [DYYYUtils logFeedNicknameScaleEntry:@"layoutSubviews后" view:self];   // ⚠️ 临时诊断
 }
 
 %end
