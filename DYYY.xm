@@ -9391,11 +9391,15 @@ static BOOL gDYYYElementShiftApplying = NO;
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
 	}
-	// 只处理右侧栏所在的交互层（首页/详情页均为 AWEPlayInteractionViewController），
-	// 这样评论面板等其它界面里的右侧按钮不会被一起上移。
-	UIViewController *dyOwnerVC = [DYYYUtils firstAvailableViewControllerFromView:self];
-	if (!dyOwnerVC || ![dyOwnerVC isKindOfClass:NSClassFromString(@"AWEPlayInteractionViewController")]) {
-		return;
+	// 排除评论面板等界面里的按钮：祖先视图链里出现 Comment 类即跳过。
+	// 这里用「排除法」而不是「限定某控制器」——后者依赖调用时机（元素可能还没挂到控制器上），
+	// 会出现同一个元素时灵时不灵的情况。
+	UIView *dyAncestor = self.superview;
+	for (int dyLevel = 0; dyLevel < 12 && dyAncestor; dyLevel++) {
+		if ([NSStringFromClass([dyAncestor class]) containsString:@"Comment"]) {
+			return;
+		}
+		dyAncestor = dyAncestor.superview;
 	}
 	CGRect rectInWindow = [self convertRect:self.bounds toView:nil];
 	if (rectInWindow.origin.x < [UIScreen mainScreen].bounds.size.width * 0.5) {
@@ -9413,11 +9417,15 @@ static BOOL gDYYYElementShiftApplying = NO;
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
 	}
-	// 只处理右侧栏所在的交互层（首页/详情页均为 AWEPlayInteractionViewController），
-	// 这样评论面板等其它界面里的右侧按钮不会被一起上移。
-	UIViewController *dyOwnerVC = [DYYYUtils firstAvailableViewControllerFromView:self];
-	if (!dyOwnerVC || ![dyOwnerVC isKindOfClass:NSClassFromString(@"AWEPlayInteractionViewController")]) {
-		return;
+	// 排除评论面板等界面里的按钮：祖先视图链里出现 Comment 类即跳过。
+	// 这里用「排除法」而不是「限定某控制器」——后者依赖调用时机（元素可能还没挂到控制器上），
+	// 会出现同一个元素时灵时不灵的情况。
+	UIView *dyAncestor = self.superview;
+	for (int dyLevel = 0; dyLevel < 12 && dyAncestor; dyLevel++) {
+		if ([NSStringFromClass([dyAncestor class]) containsString:@"Comment"]) {
+			return;
+		}
+		dyAncestor = dyAncestor.superview;
 	}
 	CGRect rectInWindow = [self convertRect:self.bounds toView:nil];
 	if (rectInWindow.origin.x < [UIScreen mainScreen].bounds.size.width * 0.5) {
