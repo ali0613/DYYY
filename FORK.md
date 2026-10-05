@@ -272,3 +272,35 @@ ssh root@<设备IP> 'mkdir -p $HOME/.ssh && chmod 700 $HOME/.ssh && cat /tmp/wsl
 
 需要"改完直接装机"时用 `install` 模式即可；`Makefile` 的 `INSTALL=1 THEOS_DEVICE_IP=<IP>` 亦可（等价能力）。
 
+## 十三、未解决：横屏自动翻转往返后元素错乱（已留下现场证据）
+
+**现象**：开启「启用首页全屏」时，**冷启动后第一次**"自动翻转成横屏 → 自动翻回竖屏"会让首页元素整块错乱；
+**下滑几个视频即自愈**。手动点翻转按钮不触发；关掉「启用首页全屏」也不触发。
+
+**已定位的事实**（靠祖先链诊断，见下）：
+
+```
+[元素] AWEBaseElementView            {774.67, 0}  32×32
+  ↑0   AWEElementStackView           {59.67, 489} 806.67×32     ← 宽 806 ✗
+  ↑1   AWEDPlayerInteractionView     926×428                     ← 横屏尺寸 ✗
+  ↑5   AWELandscapeMediumVideoPlayerCell 926×428                 ← 抖音没把它改回竖屏 ✗
+  ↑6   UICollectionView              428×926                     ← 父级早已是竖屏 ✓
+```
+
+即：翻回竖屏后，抖音的**横屏播放器 cell 仍保持横屏尺寸**，其下所有元素于是全按横屏坐标排（x≈806，而竖屏只有 428 宽）。
+
+**已试过但无效的修法**（都不要再重复走）：
+
+1. 横屏期间不干预 `transform`；
+2. 横屏时把「全屏化」的布局调整整体停用（总闸 `isFullScreenAdjustEnabled`）；
+3. 按窗口尺寸摆正"最外层仍为横屏尺寸"的容器 + `setNeedsLayout`/`layoutIfNeeded`；
+4. 监听方向变化、主动踹一次窗口布局；
+5. 抖动宿主 `UICollectionView` 的 `contentOffset` 1pt（同帧弹回）。
+
+**关键教训**：真正能自愈的是**滚动所触发的"cell 重新配置"**，普通布局重排（`setNeedsLayout` / `layoutIfNeeded`）
+**不足以**让抖音重新配置该 cell —— 下次接手从这里查：例如复现真实滑动、或查"首次翻转"那一次 cell 配置为何用了横屏尺寸。
+
+**诊断手法（可复用）**：在元素布局里检测"竖屏下元素被摆到窗口右边界之外"，把该元素**整条祖先链**
+（每层的类名 + frame + bounds）写进 `NSTemporaryDirectory()/dyyy-chain.txt`，再用 SSH 取回：
+`find /private/var/mobile/Containers/Data/Application -name dyyy-chain.txt`。
+
