@@ -4150,6 +4150,23 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 
 %hook AWEUserNameLabel
 
+- (void)didMoveToWindow {
+	%orig;
+	// 第四个入口，也是最关键的一个：视图挂进窗口时**层级已完整**。
+	// 第一次进入（例如从历史记录点开）时，layoutSubviews 里那句
+	// [grandParent.superview isKindOfClass:AWEBaseElementView] 会因为层级没搭好而过不去，
+	// 于是偏移没设上 —— 表现就是"首次打开缩放不生效、滑走再回来才生效"。
+	self.transform = CGAffineTransformIdentity;
+	NSString *dyWinOffsetStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameVerticalOffset"];
+	CGFloat dyWinOff = dyWinOffsetStr.length > 0 ? [dyWinOffsetStr floatValue] : 0;
+	UIView *dyWinP = self.superview;
+	UIView *dyWinG = dyWinP.superview;
+	if (dyWinG && [dyWinG.superview isKindOfClass:%c(AWEBaseElementView)]) {
+		CGRect dyWinGF = dyWinG.frame;
+		dyWinG.transform = CGAffineTransformMakeTranslation(-dyWinGF.origin.x, dyWinOff);
+	}
+}
+
 - (void)setFrame:(CGRect)frame {
 	%orig(frame);
 	// 第三个补套入口：label 的 frame 在复用/布局时一定会被设。
