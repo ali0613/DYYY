@@ -813,10 +813,8 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 @interface AWELiveFeedLabelTagView : UIView
 @end
 
-// 首页直播卡片（信息流里的「直播中」卡片）的整块容器
-// 结构由 FLEX 现场确认：IESLiveStackView（UIStackView）→ IESLiveLayoutContainerView → AWEBaseElementView
-@interface IESLiveStackView : UIStackView
-@end
+// 首页直播卡片（信息流里的「直播中」卡片）的整块容器是 IESLiveStackView
+//（该类在 AwemeHeaders.h 中已有声明；FLEX 现场确认其下为 IESLiveLayoutContainerView → AWEBaseElementView）
 
 @interface AWEPlayInteractionLiveExtendGuideView : UIView
 @end
