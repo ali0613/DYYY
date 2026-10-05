@@ -2562,40 +2562,34 @@ static char kDYYYFullScreenLastWrittenKey;
         [chain writeToFile:chainPath atomically:YES encoding:NSUTF8StringEncoding error:nil];
     }
 
-    // 往上找「仍然按横屏尺寸」的**最外层**那一层 —— 链实测是 AWELandscapeMediumVideoPlayerCell
-    //（抖音在翻回竖屏后没把它改回尺寸，它下面所有元素于是全按横屏坐标排）。
-    UIView *topStale = nil;
-    UIView *node = view;
-    for (int level = 0; level < 12 && node; level++) {
-        if (node.bounds.size.width > winWidth + 1.0) {
-            topStale = node;
+    // 复刻"手滑一下"的自愈动作：真正能治好它的不是普通布局重算，而是**滚动事件**
+    //（会让抖音走 cell 重新配置那一步）。这里顺链找到最近的 UICollectionView，
+    // 把 contentOffset 抖 1pt 并在同一帧内弹回 —— 不翻页、不改变停留位置。
+    UICollectionView *host = nil;
+    UIView *cursor = view;
+    for (int level = 0; level < 12 && cursor; level++) {
+        if ([cursor isKindOfClass:[UICollectionView class]]) {
+            host = (UICollectionView *)cursor;
+            break;
         }
-        node = node.superview;
+        cursor = cursor.superview;
     }
-    UIView *target = topStale ?: view.superview;
-    if (!target) {
+    if (!host) {
         return;
     }
-    // 限流：同一个容器 2 秒内只修一次 —— 万一没治好，也不至于变成"每次布局都修"的循环。
-    static char kLastFixKey;
-    NSNumber *last = objc_getAssociatedObject(target, &kLastFixKey);
-    NSTimeInterval now = [NSDate date].timeIntervalSince1970;
-    if (last && now - last.doubleValue < 2.0) {
+    // 限流：同一个列表 2 秒内只抖一次
+    static char kLastNudgeKey;
+    NSNumber *lastNudge = objc_getAssociatedObject(host, &kLastNudgeKey);
+    NSTimeInterval nowNudge = [NSDate date].timeIntervalSince1970;
+    if (lastNudge && nowNudge - lastNudge.doubleValue < 2.0) {
         return;
     }
-    objc_setAssociatedObject(target, &kLastFixKey, @(now), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    objc_setAssociatedObject(host, &kLastNudgeKey, @(nowNudge), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
-    const CGSize winSize = win.bounds.size;
-    // 下一帧再动（此刻正在布局中，避免重入）：把它按竖屏窗口尺寸摆正，再走它自己的重排
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (fabs(target.frame.size.width - winSize.width) > 1.0 ||
-            fabs(target.frame.size.height - winSize.height) > 1.0) {
-            CGRect frame = target.frame;
-            frame.size = winSize;
-            target.frame = frame;
-        }
-        [target setNeedsLayout];
-        [target layoutIfNeeded];
+        CGPoint offset = host.contentOffset;
+        host.contentOffset = CGPointMake(offset.x, offset.y + 1.0);
+        host.contentOffset = CGPointMake(offset.x, offset.y);
     });
 }
 
