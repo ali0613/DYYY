@@ -11690,7 +11690,7 @@ static Class tabBarButtonClass = nil;
         return;
     }
 
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         UIViewController *vc = [DYYYUtils firstAvailableViewControllerFromView:self];
         if ([vc isKindOfClass:%c(AWEAwemeDetailTableViewController)] ||
             [vc isKindOfClass:%c(AWEAwemeDetailCellViewController)]) {
@@ -11705,7 +11705,7 @@ static Class tabBarButtonClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         if (self.frame.size.height == originalTabBarHeight && originalTabBarHeight > 0) {
             UIViewController *vc = [DYYYUtils firstAvailableViewControllerFromView:self];
             if ([vc isKindOfClass:NSClassFromString(@"AWEMixVideoPanelDetailTableViewController")] || [vc isKindOfClass:NSClassFromString(@"AWECommentInputViewController")] ||
@@ -12056,7 +12056,7 @@ static Class tabBarButtonClass = nil;
 
 - (void)viewDidLayoutSubviews {
     %orig;
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         UIView *contentView = self.contentView;
         if (contentView && contentView.superview) {
             CGRect frame = contentView.frame;
@@ -12105,7 +12105,7 @@ static Class tabBarButtonClass = nil;
 
 - (void)viewDidLayoutSubviews {
     %orig;
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         UIView *contentView = self.contentView;
         if (contentView && contentView.superview) {
             CGRect frame = contentView.frame;
@@ -12147,7 +12147,7 @@ static Class tabBarButtonClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         CGRect frame = self.frame;
         frame.size.height = self.superview.frame.size.height;
         self.frame = frame;
@@ -12824,7 +12824,7 @@ static Class TagViewClass = nil;
                 }
 
                 CGRect frame = subview.frame;
-                if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+                if ([DYYYUtils isFullScreenAdjustEnabled]) {
                     // 横屏期间不干预：横屏下屏幕高/底栏高全部变样，写进去的错高度会跟着这个 cell，
                     // 直到 cell 复用重排才恢复 —— 也就是"自动翻转→翻回竖屏后元素错乱、下滑几个视频自愈"。
                     UIWindow *dyFSWindow = self.window;
@@ -12902,7 +12902,7 @@ static Class TagViewClass = nil;
 - (void)setCenter:(CGPoint)center {
     BOOL shouldAdjust = NO;
     UIView *view = (UIView *)self;
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         CGFloat viewWidth = CGRectGetWidth(view.bounds);
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
         if (viewWidth + 0.5f >= screenWidth) {
@@ -12933,7 +12933,7 @@ static Class TagViewClass = nil;
 - (void)setCenter:(CGPoint)center {
     BOOL shouldAdjust = NO;
     UIView *view = (UIView *)self;
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         CGFloat viewWidth = CGRectGetWidth(view.bounds);
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
         if (viewWidth + 0.5f >= screenWidth) {
@@ -12964,7 +12964,7 @@ static Class TagViewClass = nil;
 - (void)setCenter:(CGPoint)center {
     BOOL shouldAdjust = NO;
     UIView *view = (UIView *)self;
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         CGFloat viewWidth = CGRectGetWidth(view.bounds);
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
         if (viewWidth + 0.5f >= screenWidth) {
@@ -13108,7 +13108,7 @@ static Class TagViewClass = nil;
 %hook AWEMixVideoPanelMoreView
 
 - (void)setFrame:(CGRect)frame {
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         CGFloat targetY = frame.origin.y - gCurrentTabBarHeight;
         CGFloat screenHeightMinusGDiff = [UIScreen mainScreen].bounds.size.height - gCurrentTabBarHeight;
 
@@ -13124,7 +13124,7 @@ static Class TagViewClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         self.backgroundColor = [UIColor clearColor];
     }
 }
@@ -13178,7 +13178,7 @@ static Class TagViewClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
         UIView *parentView = self.superview;
         while (parentView) {
             if ([NSStringFromClass([parentView class]) isEqualToString:@"UIView"]) {
@@ -13403,7 +13403,7 @@ static NSString *const kHideRecentUsersKey = @"DYYYHideSidebarRecentUsers";
 - (void)layoutSubviews {
     %orig;
 
-    if (DYYYGetBool(@"DYYYEnableFullScreen")) {
+    if ([DYYYUtils isFullScreenAdjustEnabled]) {
 
         self.backgroundColor = [UIColor clearColor];
 

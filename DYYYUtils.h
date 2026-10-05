@@ -350,6 +350,13 @@ NS_ASSUME_NONNULL_BEGIN
 /** 当前是否正由 DYYY 写入昵称缩放（供 setTransform: 防自触发） */
 + (BOOL)isApplyingFeedNicknameScale;
 
+/**
+ * 是否应当执行「启用首页全屏」的布局调整。
+ * 横屏时一律返回 NO —— 横屏下屏幕高/底栏高全部变样，此时写进去的 frame/高度会跟着那个 cell，
+ * 直到 cell 复用重排才恢复（表现为：自动翻转→翻回竖屏后元素错乱、下滑几个视频自愈）。
+ */
++ (BOOL)isFullScreenAdjustEnabled;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;

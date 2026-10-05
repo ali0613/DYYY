@@ -2448,6 +2448,18 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
 static BOOL gDYYYFeedNicknameScaleApplying = NO;
 static char kDYYYFeedEntryBaseTransformKey;
 
++ (BOOL)isFullScreenAdjustEnabled {
+    if (!DYYYGetBool(@"DYYYEnableFullScreen")) {
+        return NO;
+    }
+    // 横屏不调整：此时屏幕高/底栏高全部变样，写错的值会跟着那个 cell 直到复用重排。
+    UIWindow *win = [self getActiveWindow];
+    if (win && win.bounds.size.width > win.bounds.size.height) {
+        return NO;
+    }
+    return YES;
+}
+
 + (BOOL)isApplyingFeedNicknameScale {
     return gDYYYFeedNicknameScaleApplying;
 }
