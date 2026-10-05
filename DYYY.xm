@@ -9646,21 +9646,12 @@ static BOOL gDYYYElementShiftApplying = NO;
 	[DYYYUtils logFeedNicknameScaleEntry:@"layoutSubviews前" view:self];   // ⚠️ 临时诊断
 	%orig;
 
-	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
-	// 挂既有开关「隐藏去汽水听」DYYYHideQuqishuiting，不新增设置项；
-	// 类名首字母不确定，所以按「类名包含 DiversionBar」匹配。
-	// 注意：必须放在下面那段「右侧栏上移」的提前 return 之前 —— 开启上移时也要能隐藏。
-	if (DYYYGetBool(@"DYYYHideQuqishuiting")) {
-		for (UIView *dySub in self.subviews) {
-			if ([NSStringFromClass([dySub class]) containsString:@"DiversionBar"]) {
-				dySub.hidden = YES;
-			}
-		}
-	}
-
-	// 「昵称文案缩放」：必须放在下面那段「右侧栏上移」的提前 return **之前** ✗。
-	// 但同时也**只能写给已经挂到窗口上的视图** —— 这个类不止昵称在用（右侧按钮、底部行也是它），
-	// 复用/预创建阶段（window 为空）给它写缩放会污染抖音自己的布局。
+	// 「昵称文案缩放」：位置有两个讲究 ✗
+	//   1. 必须在 %orig **之后** —— 否则抖音的布局会紧跟着把 transform 重置掉，等于没写；
+	//   2. 必须在下面那段「右侧栏上移」的提前 return **之前** —— 那段要求 self.window，
+	//      而复用时视图可能还没挂窗口，一旦提前 return 这里就永远执行不到。
+	// 另外只写给**已挂到窗口上**的视图：这个类不止昵称在用（右侧按钮、底部行也是它），
+	// 给预创建视图写缩放会污染抖音自己的布局。
 	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
 	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
 	if (self.window) {
@@ -9673,6 +9664,18 @@ static BOOL gDYYYElementShiftApplying = NO;
 		gDYYYFeedNicknameScaling = NO;
 	}
 	[DYYYUtils logFeedNicknameScaleEntry:@"layoutSubviews后" view:self];   // ⚠️ 临时诊断
+
+	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
+	// 挂既有开关「隐藏去汽水听」DYYYHideQuqishuiting，不新增设置项；
+	// 类名首字母不确定，所以按「类名包含 DiversionBar」匹配。
+	// 注意：必须放在下面那段「右侧栏上移」的提前 return 之前 —— 开启上移时也要能隐藏。
+	if (DYYYGetBool(@"DYYYHideQuqishuiting")) {
+		for (UIView *dySub in self.subviews) {
+			if ([NSStringFromClass([dySub class]) containsString:@"DiversionBar"]) {
+				dySub.hidden = YES;
+			}
+		}
+	}
 
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
