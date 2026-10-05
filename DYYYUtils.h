@@ -337,6 +337,12 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (void)applyLiveCardScaleCentered:(UIView *)view;
 
+/**
+ * ⚠️ 临时诊断：记录「昵称文案缩放」各入口的调用与 transform 状态，
+ * 写到 tmp/dyyy-nick.txt（限 300 行）。用来定位"无文案视频复用后缩放丢失"。
+ */
++ (void)logFeedNicknameScaleEntry:(NSString *)entry view:(UIView *)view;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;

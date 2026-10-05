@@ -2472,6 +2472,34 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
     }
 }
 
++ (void)logFeedNicknameScaleEntry:(NSString *)entry view:(UIView *)view {
+    if (!view) {
+        return;
+    }
+    static NSInteger dyNickCount = 0;
+    if (dyNickCount >= 300) {
+        return;
+    }
+    dyNickCount++;
+    NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
+    CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
+    BOOL lost = (scale > 0 && scale != 1.0 && fabs(view.transform.a - scale) > 0.01);
+    NSString *line = [NSString stringWithFormat:@"%04ld %@ %-14@ a=%.3f 期望=%.2f %@ frame=%@\n",
+                      (long)dyNickCount,
+                      lost ? @"✗丢失" : @"  正常",
+                      entry ?: @"?",
+                      view.transform.a,
+                      scale,
+                      lost ? @"<<<" : @"",
+                      NSStringFromCGRect(view.frame)];
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"dyyy-nick.txt"];
+    FILE *file = fopen(path.UTF8String, "a");
+    if (file) {
+        fputs(line.UTF8String, file);
+        fclose(file);
+    }
+}
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root {
     if (!root) {
         return;

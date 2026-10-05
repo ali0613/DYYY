@@ -9643,6 +9643,7 @@ static BOOL gDYYYElementShiftApplying = NO;
 }
 
 - (void)layoutSubviews {
+	[DYYYUtils logFeedNicknameScaleEntry:@"layoutSubviews前" view:self];   // ⚠️ 临时诊断
 	%orig;
 
 	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
@@ -9656,6 +9657,20 @@ static BOOL gDYYYElementShiftApplying = NO;
 			}
 		}
 	}
+
+	// 「昵称文案缩放」：必须放在下面那段「右侧栏上移」的提前 return **之前** ✗。
+	// 那段要求 self.window 存在，而复用时视图可能还没挂到窗口上 —— 一旦提前 return，
+	// 这里的缩放写入就永远执行不到（表现："滑回上一个再滑回来缩放失效、再多滑几下又好了"）。
+	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
+	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
+	gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
+	if (scale > 0 && scale != 1.0) {
+		self.transform = CGAffineTransformMakeScale(scale, scale);
+	} else {
+		self.transform = CGAffineTransformIdentity;
+	}
+	gDYYYFeedNicknameScaling = NO;
+	[DYYYUtils logFeedNicknameScaleEntry:@"layoutSubviews后" view:self];   // ⚠️ 临时诊断
 
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
@@ -12993,6 +13008,7 @@ static Class TagViewClass = nil;
 %hook AWELandscapeFeedEntryView
 
 - (void)setFrame:(CGRect)frame {
+	[DYYYUtils logFeedNicknameScaleEntry:@"setFrame" view:self];   // ⚠️ 临时诊断
 	%orig(frame);
 	// 「昵称文案缩放」的第二个补套入口。
 	// 无文案的视频复用时，抖音可能**不写 transform**（那样 setTransform: 就不会触发），
@@ -13004,6 +13020,7 @@ static Class TagViewClass = nil;
 }
 
 - (void)setTransform:(CGAffineTransform)transform {
+	[DYYYUtils logFeedNicknameScaleEntry:@"setTransform" view:self];   // ⚠️ 临时诊断
 	%orig(transform);
 
 	// 「昵称文案缩放」的补套入口。
@@ -13091,6 +13108,7 @@ static Class TagViewClass = nil;
         self.transform = CGAffineTransformIdentity;
     }
     gDYYYFeedNicknameScaling = NO;
+    [DYYYUtils logFeedNicknameScaleEntry:@"layoutSubviews后" view:self];   // ⚠️ 临时诊断
 }
 
 %end
