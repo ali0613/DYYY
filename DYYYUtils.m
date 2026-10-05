@@ -2385,9 +2385,22 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
     }
     CGAffineTransform base = [orig CGAffineTransformValue];
 
-    // FLEX 现场确认：只有 superview 为 IESLiveLayoutContainerView 的那个 stack 才是
-    //「徽标 + 昵称 + 文案」的容器；信息流卡片最外层另有一个同类 stack（行是整个底部区域）。
-    BOOL isTarget = [stack.superview isKindOfClass:NSClassFromString(@"IESLiveLayoutContainerView")];
+    // FLEX 现场确认的目标判别：
+    //   目标是「徽标 + 昵称 + 文案」那个 stack —— 它含有若干**窄的行容器**
+    //   （IESLiveLayoutContainerView，例如 180×20，即「直播中/你的关注」那一行）；
+    //   而最外层 stack（子视图是全宽 404 容器）、高度为 0 的空 stack 一律排除。
+    BOOL isTarget = NO;
+    if (stack.bounds.size.height > 0) {
+        for (UIView *sub in stack.subviews) {
+            if ([NSStringFromClass([sub class]) containsString:@"IESLiveLayoutContainerView"]) {
+                const CGFloat w = sub.bounds.size.width;
+                if (w > 0 && w < 300) {
+                    isTarget = YES;
+                    break;
+                }
+            }
+        }
+    }
     const CGFloat scale = DYYYGetFloat(@"DYYYNicknameScale");
 
     CGAffineTransform want;
