@@ -7963,7 +7963,10 @@ static NSHashTable *processedParentViews = nil;
 	%orig;
 	// 行容器的 layoutSubviews 是「宽度已确定」的可靠时机（实测会触发）：
 	// 借它作为入口，去缩放它的 superview —— 也就是包含全部行的那层最内层 IESLiveStackView。
-	[DYYYUtils applyLiveCardScaleToStack:(UIView *)self.superview];
+	// 参照「首页全屏化」的处理：开启全屏时，整块再上移一个当前底栏高度，避免压到底栏。
+	// 底栏高度沿用全屏化那套全局值 gCurrentTabBarHeight（无效时按 0 处理）。
+	const CGFloat dyShiftUp = DYYYGetBool(@"DYYYEnableFullScreen") && gCurrentTabBarHeight > 0 ? gCurrentTabBarHeight : 0.0;
+	[DYYYUtils applyLiveCardScaleToStack:(UIView *)self.superview shiftUp:dyShiftUp];
 
 	// 直播卡片上的「相关搜索」行：整条链都是通用类（容器 → AWEBaseElementView → UIView → UILabel）
 	// ，没有专属类名可挂，只能按内容识别：高度约 40 且内部标签文字以「相关搜索」开头 → 整行隐藏。

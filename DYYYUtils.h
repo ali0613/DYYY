@@ -312,6 +312,14 @@ NS_ASSUME_NONNULL_BEGIN
  * 抖音自带 transform 会被缓存后叠加（不覆盖），非目标 / 未启用时恢复原状。
  * 供 setFrame: / didMoveToSuperview / didMoveToWindow / layoutSubviews 多个入口调用。
  */
+/**
+ * 直播卡片「徽标 + 昵称 + 文案」整块缩放（并按 shiftUp 上移）。
+ * 只处理最内层那个 IESLiveStackView；抖音自带 transform 会缓存后叠加，不覆盖。
+ * shiftUp 参照「首页全屏化」的处理由调用方传入（通常传当前底栏高度）。
+ */
++ (void)applyLiveCardScaleToStack:(UIView *)stack shiftUp:(CGFloat)shiftUp;
+
+/** 不带位移的便捷版本（等价于 shiftUp = 0） */
 + (void)applyLiveCardScaleToStack:(UIView *)stack;
 
 /**

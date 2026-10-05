@@ -2390,6 +2390,10 @@ static BOOL gDYYYLiveCardScaling = NO;
 }
 
 + (void)applyLiveCardScaleToStack:(UIView *)view {
+    [self applyLiveCardScaleToStack:view shiftUp:0.0];
+}
+
++ (void)applyLiveCardScaleToStack:(UIView *)view shiftUp:(CGFloat)shiftUp {
     if (!view) {
         return;
     }
@@ -2417,12 +2421,12 @@ static BOOL gDYYYLiveCardScaling = NO;
 
     const CGFloat scale = DYYYGetFloat(@"DYYYNicknameScale");
     CGAffineTransform want = base;
-    if (isInnerStack && scale != 0.0) {
-        const CGFloat target = MAX(0.01, scale);
+    if (isInnerStack && (scale != 0.0 || shiftUp != 0.0)) {
+        const CGFloat target = (scale == 0.0) ? 1.0 : MAX(0.01, scale);
         const CGFloat width = view.bounds.size.width;
         const CGFloat height = view.bounds.size.height;
-        const CGFloat tx = (width - width * target) / -2.0;    // 负值：把左边缘钉住（内容左对齐）
-        const CGFloat ty = (height - height * target) / -2.0;  // 负值：把上边缘钉住（内容顶对齐）
+        const CGFloat tx = (width - width * target) / -2.0;                 // 负值：把左边缘钉住（内容左对齐）
+        const CGFloat ty = (height - height * target) / -2.0 - shiftUp;     // 上边缘钉住，再叠加用户设定的上移
         CGAffineTransform m = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, ty),
                                                       CGAffineTransformMakeScale(target, target));
         want = CGAffineTransformConcat(m, base);
