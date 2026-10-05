@@ -2444,6 +2444,52 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
     }
 }
 
+// 「昵称文案缩放」的防自触发标志 + 抖音基准变换缓存键
+static BOOL gDYYYFeedNicknameScaleApplying = NO;
+static char kDYYYFeedEntryBaseTransformKey;
+
++ (BOOL)isApplyingFeedNicknameScale {
+    return gDYYYFeedNicknameScaleApplying;
+}
+
++ (void)noteFeedEntryBaseTransform:(CGAffineTransform)transform forView:(UIView *)view {
+    if (!view) {
+        return;
+    }
+    objc_setAssociatedObject(view, &kDYYYFeedEntryBaseTransformKey,
+                             [NSValue valueWithCGAffineTransform:transform],
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
++ (void)applyFeedNicknameScaleToView:(UIView *)view {
+    if (!view) {
+        return;
+    }
+    // 横屏期间不干预：抖音横屏有自己的元素布局，此时覆盖 transform 会毁掉它，
+    // 自动翻回竖屏后元素位置就错乱（手动翻转走的路径不同，所以看不出问题）。
+    UIWindow *win = view.window;
+    if (win && win.bounds.size.width > win.bounds.size.height) {
+        return;
+    }
+    // 在「抖音写入的基准变换」之上叠加缩放，而不是覆盖。
+    // 基准由 DYYY.xm 的 setTransform: 钩子每次抖音写入时更新。
+    NSValue *baseValue = objc_getAssociatedObject(view, &kDYYYFeedEntryBaseTransformKey);
+    CGAffineTransform base = baseValue ? [baseValue CGAffineTransformValue] : view.transform;
+
+    NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
+    CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
+
+    CGAffineTransform want = base;
+    if (scale > 0 && scale != 1.0) {
+        want = CGAffineTransformConcat(CGAffineTransformMakeScale(scale, scale), base);
+    }
+    if (!CGAffineTransformEqualToTransform(view.transform, want)) {
+        gDYYYFeedNicknameScaleApplying = YES;
+        view.transform = want;
+        gDYYYFeedNicknameScaleApplying = NO;
+    }
+}
+
 + (void)applyLiveCardScaleCentered:(UIView *)view {
     if (!view) {
         return;

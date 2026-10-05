@@ -9593,6 +9593,12 @@ static BOOL gDYYYElementShiftApplying = NO;
 - (void)setFrame:(CGRect)frame {
 	%orig(frame);
 
+	// 横屏期间不干预：抖音横屏有自己的元素布局，覆盖 transform 会把"翻回竖屏"后的位置搞乱
+	//（自动翻转会走这条路径，手动翻转不会，所以只在自动翻转时暴露）。
+	UIWindow *dyElementWindow = self.window;
+	if (dyElementWindow && dyElementWindow.bounds.size.width > dyElementWindow.bounds.size.height) {
+		return;
+	}
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
@@ -9619,6 +9625,12 @@ static BOOL gDYYYElementShiftApplying = NO;
 - (void)didMoveToWindow {
 	%orig;
 
+	// 横屏期间不干预：抖音横屏有自己的元素布局，覆盖 transform 会把"翻回竖屏"后的位置搞乱
+	//（自动翻转会走这条路径，手动翻转不会，所以只在自动翻转时暴露）。
+	UIWindow *dyElementWindow = self.window;
+	if (dyElementWindow && dyElementWindow.bounds.size.width > dyElementWindow.bounds.size.height) {
+		return;
+	}
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
@@ -9657,6 +9669,12 @@ static BOOL gDYYYElementShiftApplying = NO;
 		}
 	}
 
+	// 横屏期间不干预：抖音横屏有自己的元素布局，覆盖 transform 会把"翻回竖屏"后的位置搞乱
+	//（自动翻转会走这条路径，手动翻转不会，所以只在自动翻转时暴露）。
+	UIWindow *dyElementWindow = self.window;
+	if (dyElementWindow && dyElementWindow.bounds.size.width > dyElementWindow.bounds.size.height) {
+		return;
+	}
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
@@ -12996,20 +13014,14 @@ static Class TagViewClass = nil;
 	%orig(transform);
 
 	// 「昵称文案缩放」的补套入口。
-	// 抖音在 cell 复用时会把 transform 重置掉；有文案的视频因为布局会重跑，
-	// layoutSubviews 里那段缩放会重新生效 —— 而**无文案的视频**复用时内部没有变化、
-	// 布局不重跑，缩放就丢了。这里在抖音写入的那一刻立刻补回来。
-	if (gDYYYFeedNicknameScaling) {
+	// 抖音在 cell 复用/横竖屏切换时会重写 transform；有文案的视频因为布局会重跑，
+	// layoutSubviews 里那段缩放会重新生效 —— 而**无文案的视频**复用时不重跑，缩放就丢了。
+	// 这里在抖音写入的那一刻：记录它的基准值，并立刻在基准之上补套缩放。
+	if ([DYYYUtils isApplyingFeedNicknameScale]) {
 		return;   // 是 DYYY 自己写的，忽略
 	}
-	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
-	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
-	if (scale <= 0 || scale == 1.0) {
-		return;   // 未启用缩放：不干预抖音的变换
-	}
-	gDYYYFeedNicknameScaling = YES;
-	self.transform = CGAffineTransformMakeScale(scale, scale);
-	gDYYYFeedNicknameScaling = NO;
+	[DYYYUtils noteFeedEntryBaseTransform:transform forView:self];
+	[DYYYUtils applyFeedNicknameScaleToView:self];   // 横屏时工具方法内部会自动跳过
 }
 
 - (void)setAlpha:(CGFloat)alpha {
@@ -13071,15 +13083,9 @@ static Class TagViewClass = nil;
         [self.superview bringSubviewToFront:self];
     }
 
-    NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
-    CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
-    gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
-    if (scale > 0 && scale != 1.0) {
-        self.transform = CGAffineTransformMakeScale(scale, scale);
-    } else {
-        self.transform = CGAffineTransformIdentity;
-    }
-    gDYYYFeedNicknameScaling = NO;
+    // 统一走工具方法：内部含「横屏期间不干预」保护 + 「在抖音基准变换之上叠加缩放」，
+    // 并自带防自触发；横竖屏切换后由 setTransform: 那条路负责补套。
+    [DYYYUtils applyFeedNicknameScaleToView:self];
 }
 
 %end

@@ -337,6 +337,19 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (void)applyLiveCardScaleCentered:(UIView *)view;
 
+/**
+ * 首页视频「昵称文案缩放」的统一入口（AWELandscapeFeedEntryView）。
+ * 内含两道保护：
+ *   1. 横屏期间直接返回 —— 抖音横屏有自己的元素布局，此时写 transform 会毁掉它，
+ *      自动翻回竖屏后元素位置就错乱（手动翻转走的路不同，所以看不出问题）；
+ *   2. 在「抖音写入的基准变换」之上叠加缩放，而不是覆盖。
+ */
++ (void)applyFeedNicknameScaleToView:(UIView *)view;
+/** 记录抖音刚写入的基准变换（由 setTransform: 钩子调用） */
++ (void)noteFeedEntryBaseTransform:(CGAffineTransform)transform forView:(UIView *)view;
+/** 当前是否正由 DYYY 写入昵称缩放（供 setTransform: 防自触发） */
++ (BOOL)isApplyingFeedNicknameScale;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;
