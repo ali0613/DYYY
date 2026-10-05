@@ -2818,7 +2818,7 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
     if (!DYYYGetBool(@"DYYYCommentExactTime") || !attributedText || attributedText.length == 0) {
         %orig(attributedText);
         // ⚠️ 诊断标记：YYLabel 层的 setAttributedText: 若被执行，文字块会带蓝色底
-        self.backgroundColor = [UIColor colorWithRed:0.0 green:0.4 blue:1.0 alpha:0.35];
+        ((UIView *)(id)self).backgroundColor = [UIColor colorWithRed:0.0 green:0.4 blue:1.0 alpha:0.35];
         // 文案字体加粗：抖音 40.x 的文案由 YYLabel 渲染，在文本写入的这一刻处理最稳
         if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescBoldApplyingYY) {
             gDYYYDescBoldApplyingYY = YES;
