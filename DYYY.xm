@@ -3954,6 +3954,29 @@ static void DYYYDisableAVPlayerItemHDRMetadata(AVPlayerItem *item) {
 // 对新版文案的偏移（33.0以上）
 %hook AWEPlayInteractionDescriptionLabel
 
+// 文案加粗：在文本真正写入的那一刻处理。
+// 之前只挂 layoutSubviews —— 它在抖音赋值文案之前就跑了，之后不再重排，于是永远等不到文本（无效）。
+// 这里挂 setter 才稳；防重入标志避免自身回写 attributedText 触发递归。
+static BOOL gDYYYDescriptionBoldApplying = NO;
+
+- (void)setAttributedText:(NSAttributedString *)attributedText {
+	%orig(attributedText);
+	if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescriptionBoldApplying) {
+		gDYYYDescriptionBoldApplying = YES;
+		[DYYYUtils applyBoldFontRecursivelyInView:self];
+		gDYYYDescriptionBoldApplying = NO;
+	}
+}
+
+- (void)setText:(NSString *)text {
+	%orig(text);
+	if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescriptionBoldApplying) {
+		gDYYYDescriptionBoldApplying = YES;
+		[DYYYUtils applyBoldFontRecursivelyInView:self];
+		gDYYYDescriptionBoldApplying = NO;
+	}
+}
+
 static char kLongPressGestureKey;
 static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEnabled";
 
