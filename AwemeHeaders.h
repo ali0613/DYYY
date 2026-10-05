@@ -903,6 +903,8 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 @end
 
 @interface AWEPlayInteractionDescriptionLabel : UILabel
+// DYYY 内部方法：把该标签的字体替换为粗体（供「文案字体加粗」使用）
+- (void)dyyy_directBoldFont;
 @end
 // 关注直播
 @interface AWEConcernSkylightCapsuleView : UIView
