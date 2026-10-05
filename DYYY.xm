@@ -2817,6 +2817,8 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
 - (void)setAttributedText:(NSAttributedString *)attributedText {
     if (!DYYYGetBool(@"DYYYCommentExactTime") || !attributedText || attributedText.length == 0) {
         %orig(attributedText);
+        // ⚠️ 诊断标记：YYLabel 层的 setAttributedText: 若被执行，文字块会带蓝色底
+        self.backgroundColor = [UIColor colorWithRed:0.0 green:0.4 blue:1.0 alpha:0.35];
         // 文案字体加粗：抖音 40.x 的文案由 YYLabel 渲染，在文本写入的这一刻处理最稳
         if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescBoldApplyingYY) {
             gDYYYDescBoldApplyingYY = YES;
@@ -3969,6 +3971,8 @@ static BOOL gDYYYDescriptionBoldApplying = NO;
 
 - (void)setAttributedText:(NSAttributedString *)attributedText {
 	%orig(attributedText);
+	// ⚠️ 诊断标记：文案标签的 setter 若被执行，文字块会带红色底 —— 用颜色判断 hook 是否真的在跑
+	self.backgroundColor = [UIColor colorWithRed:1.0 green:0.0 blue:0.0 alpha:0.35];
 	if (!gDYYYDescriptionBoldApplying) {
 		gDYYYDescriptionBoldApplying = YES;
 		[DYYYUtils applyBoldFontRecursivelyInView:self];
@@ -3979,6 +3983,8 @@ static BOOL gDYYYDescriptionBoldApplying = NO;
 
 - (void)setText:(NSString *)text {
 	%orig(text);
+	// ⚠️ 诊断标记：同上（红色底）
+	self.backgroundColor = [UIColor colorWithRed:1.0 green:0.0 blue:0.0 alpha:0.35];
 	if (!gDYYYDescriptionBoldApplying) {
 		gDYYYDescriptionBoldApplying = YES;
 		[DYYYUtils applyBoldFontRecursivelyInView:self];
