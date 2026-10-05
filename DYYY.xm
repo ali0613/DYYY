@@ -9645,6 +9645,18 @@ static BOOL gDYYYElementShiftApplying = NO;
 - (void)layoutSubviews {
 	%orig;
 
+	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
+	// 挂既有开关「隐藏去汽水听」DYYYHideQuqishuiting，不新增设置项；
+	// 类名首字母不确定，所以按「类名包含 DiversionBar」匹配。
+	// 注意：必须放在下面那段「右侧栏上移」的提前 return 之前 —— 开启上移时也要能隐藏。
+	if (DYYYGetBool(@"DYYYHideQuqishuiting")) {
+		for (UIView *dySub in self.subviews) {
+			if ([NSStringFromClass([dySub class]) containsString:@"DiversionBar"]) {
+				dySub.hidden = YES;
+			}
+		}
+	}
+
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
