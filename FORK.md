@@ -231,3 +231,44 @@ EXC_BREAKPOINT (SIGTRAP) → libswiftCore._assertionFailure → _bridgeCocoaStri
 > 文案有两处 hook（`AWEPlayInteractionDescriptionLabel` 与 `AWEPlayInteractionDescriptionScrollView`），
 > 绑定时机不固定：setter 负责"先赋值"的顺序，`layoutSubviews` 负责"抖音后赋值覆盖"的顺序，两道都要有。
 
+## 十二、本地出包（**取代第九节的"只能靠 CI"结论**）
+
+**结论：本地可以出可直接安装的包，一轮 1~2 分钟，不需要推 CI。**
+
+### 原理
+
+之前判定"本地包不能用"，根因**只在 `arm64e` 那一片**：
+Linux 侧 clang 编出的 arm64e 目标文件与 iOS 的 arm64e ABI 版本不兼容
+（`ld: object file … was built with an incompatible arm64e ABI compiler`），装上去会崩。
+
+而**抖音是 App Store 应用 = 纯 `arm64`**（arm64e 只有系统进程用），所以：
+
+```bash
+bash scripts/build-local.sh arm64            # 只编 arm64 → 无 ABI 问题、可直接装
+bash scripts/build-local.sh arm64 install    # 编完自动 scp 进设备 + dpkg 安装 + 重启抖音
+bash scripts/build-local.sh both             # 需要双架构时才用（这个包不要装到设备上）
+```
+
+- 包标记仍是 `iphoneos-arm64e`（Sileo 认 ✓），但**二进制只有 arm64** ✓ —— 抖音里注入正常 ✓（实测 ✓）。
+- 包体积约为双架构包的一半（少了一片），属正常现象。
+
+### 设备免密（一次性）
+
+设备装 `openssh` 后，把 WSL 侧的公钥追加到设备：
+
+```bash
+# 公钥：packages/wsl_key.pub（脚本已生成，对应 WSL 的 ~/.ssh/id_ed25519）
+scp packages/wsl_key.pub root@<设备IP>:/tmp/
+ssh root@<设备IP> 'mkdir -p $HOME/.ssh && chmod 700 $HOME/.ssh && cat /tmp/wsl_key.pub >> $HOME/.ssh/authorized_keys && chmod 600 $HOME/.ssh/authorized_keys && rm -f /tmp/wsl_key.pub'
+```
+
+- **注意 1**：Windows PowerShell 不支持 `<` 重定向 ✗（用 `scp` 传文件，别用管道 ✓，管道会带 CRLF 进密钥文件 ✓）。
+- **注意 2**：**免密只在配了公钥的那一侧生效** —— 在 Windows 上验证会仍要密码（Windows 的 `~/.ssh` 是另一套密钥），
+  要用 WSL 侧验证：`ssh root@<IP> 'echo ok'`。
+- **注意 3**：从本工具（pwsh 外壳）调用 WSL 时，命令行里的 `$XXX` 会被 PowerShell 提前展开 ✗ →
+  **要么写成脚本文件再执行，要么用 `~` 代替 `$HOME`**（本项目就是这么踩过来的 ✓）。
+
+### 自动化下一步
+
+需要"改完直接装机"时用 `install` 模式即可；`Makefile` 的 `INSTALL=1 THEOS_DEVICE_IP=<IP>` 亦可（等价能力）。
+
