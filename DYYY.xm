@@ -3962,26 +3962,48 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
 // 对新版文案的偏移（33.0以上）
 %hook AWEPlayInteractionDescriptionLabel
 
-// 文案加粗：在文本真正写入的那一刻处理。
-// 之前只挂 layoutSubviews —— 它在抖音赋值文案之前就跑了，之后不再重排，于是永远等不到文本（无效）。
-// 这里挂 setter 才稳；防重入标志避免自身回写 attributedText 触发递归。
+// ⚠️ 临时诊断版本：此处【不看开关】无条件加粗，用于区分
+//   「开关值没读到」 与 「加粗手法对该类无效」 两种可能。
+// 定位完成后会把开关判断加回来（其余功能不受影响）。
 static BOOL gDYYYDescriptionBoldApplying = NO;
 
 - (void)setAttributedText:(NSAttributedString *)attributedText {
 	%orig(attributedText);
-	if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescriptionBoldApplying) {
+	if (!gDYYYDescriptionBoldApplying) {
 		gDYYYDescriptionBoldApplying = YES;
 		[DYYYUtils applyBoldFontRecursivelyInView:self];
+		[self dyyy_directBoldFont];
 		gDYYYDescriptionBoldApplying = NO;
 	}
 }
 
 - (void)setText:(NSString *)text {
 	%orig(text);
-	if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescriptionBoldApplying) {
+	if (!gDYYYDescriptionBoldApplying) {
 		gDYYYDescriptionBoldApplying = YES;
 		[DYYYUtils applyBoldFontRecursivelyInView:self];
+		[self dyyy_directBoldFont];
 		gDYYYDescriptionBoldApplying = NO;
+	}
+}
+
+%new
+- (void)dyyy_directBoldFont {
+	UIFont *dyFont = self.font;
+	if (!dyFont && self.attributedText.length > 0) {
+		dyFont = [self.attributedText attribute:NSFontAttributeName atIndex:0 effectiveRange:NULL];
+	}
+	if (!dyFont) {
+		dyFont = [UIFont systemFontOfSize:15 weight:UIFontWeightRegular];
+	}
+	UIFontDescriptorSymbolicTraits dyTraits = dyFont.fontDescriptor.symbolicTraits;
+	if (dyTraits & UIFontDescriptorTraitBold) {
+		return;
+	}
+	UIFontDescriptor *dyDesc = [dyFont.fontDescriptor fontDescriptorWithSymbolicTraits:(dyTraits | UIFontDescriptorTraitBold)];
+	UIFont *dyBoldFont = dyDesc ? [UIFont fontWithDescriptor:dyDesc size:dyFont.pointSize] : nil;
+	if (dyBoldFont) {
+		self.font = dyBoldFont;
 	}
 }
 
