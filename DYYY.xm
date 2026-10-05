@@ -4150,6 +4150,21 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 
 %hook AWEUserNameLabel
 
+- (void)setFrame:(CGRect)frame {
+	%orig(frame);
+	// 第三个补套入口：label 的 frame 在复用/布局时一定会被设。
+	// （setText: 只在文字变化时触发；layoutSubviews 在无文案复用时不重跑 —— 都不够可靠。）
+	self.transform = CGAffineTransformIdentity;
+	NSString *dyOffsetStr = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameVerticalOffset"];
+	CGFloat dyOff = dyOffsetStr.length > 0 ? [dyOffsetStr floatValue] : 0;
+	UIView *dyP = self.superview;
+	UIView *dyG = dyP.superview;
+	if (dyG && [dyG.superview isKindOfClass:%c(AWEBaseElementView)]) {
+		CGRect dyGF = dyG.frame;
+		dyG.transform = CGAffineTransformMakeTranslation(-dyGF.origin.x, dyOff);
+	}
+}
+
 - (void)setText:(NSString *)text {
 	%orig(text);
 	// 复用时文字一定会被赋值 —— 借此把「祖父视图偏移」补上。
