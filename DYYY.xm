@@ -12716,6 +12716,19 @@ static Class TagViewClass = nil;
             }
         }
 
+        // 两个判断都不成立时：说明元素还没挂上（典型场景：从历史记录「首次打开」）。
+        // 这一轮做不了任何事，稍后补排一次 —— 否则之后再没有第二次布局，缩放就永远不生效。
+        if (!isRightStack && !isLeftStack) {
+            static NSTimeInterval dyRetryLast = 0;
+            NSTimeInterval dyRetryNow = [NSDate date].timeIntervalSince1970;
+            if (dyRetryNow - dyRetryLast > 0.3) {
+                dyRetryLast = dyRetryNow;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self setNeedsLayout];
+                });
+            }
+        }
+
         // 右侧元素的处理逻辑
         if (isRightStack) {
             NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYElementScale"];
