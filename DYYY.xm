@@ -4153,6 +4153,42 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 //   AWEElementStackView {9.33, 741.67} (313×97)
 //     └ AWEBaseElementView (313×36) └ UIStackView (229×24) └ AWEBButton 「@xxx」(158×24)
 // 上游那套 hook 的是 AWEUserNameLabel —— 该版本已不渲染昵称，所以完全失效（日志实测一次都没执行）。
+// 「昵称文案缩放」的兜底触发：挂在窗口布局上。
+// 前面挂 AWEBButton（layoutSubviews / didMoveToWindow）与 AWEBaseElementView 都实测"不触发"，
+// 窗口布局则是必然会发生的 —— 这里做一次「限流 + 受限规模」的扫描，找到昵称按钮就套缩放。
+%hook UIWindow
+
+- (void)layoutSubviews {
+	%orig;
+
+	NSString *dyWinScaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
+	CGFloat dyWinScale = dyWinScaleValue.length > 0 ? [dyWinScaleValue floatValue] : 1.0;
+	if (dyWinScale <= 0 || dyWinScale == 1.0) {
+		return;   // 未启用缩放：完全不干预
+	}
+	static NSTimeInterval dyWinLastScan = 0;
+	NSTimeInterval dyWinNow = [NSDate date].timeIntervalSince1970;
+	if (dyWinNow - dyWinLastScan < 1.0) {
+		return;   // 限流：每秒最多扫一次，避免影响性能
+	}
+	dyWinLastScan = dyWinNow;
+
+	NSMutableArray *dyWinQueue = [NSMutableArray arrayWithObject:self];
+	int dyWinGuard = 0;
+	while (dyWinQueue.count > 0 && dyWinGuard++ < 1200) {
+		UIView *dyWinNode = dyWinQueue.lastObject;
+		[dyWinQueue removeLastObject];
+		if ([NSStringFromClass([dyWinNode class]) containsString:@"AWEBButton"]) {
+			[DYYYUtils applyFeedNicknameScaleForButton:dyWinNode];
+		}
+		for (UIView *dyWinSub in dyWinNode.subviews) {
+			[dyWinQueue addObject:dyWinSub];
+		}
+	}
+}
+
+%end
+
 %hook AWEBButton
 
 - (void)didMoveToWindow {
