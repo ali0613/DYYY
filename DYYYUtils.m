@@ -2372,6 +2372,23 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
     }
 }
 
+// 是否正由 DYYY 写入直播卡片缩放（供 setTransform: 判断自触发）
+static BOOL gDYYYLiveCardScaling = NO;
+
++ (BOOL)isApplyingLiveCardScale {
+    return gDYYYLiveCardScaling;
+}
+
++ (void)resetLiveCardBaseTransform:(CGAffineTransform)transform forStack:(UIView *)stack {
+    if (!stack) {
+        return;
+    }
+    static char kDYYYLiveCardStackOriginalKey;
+    objc_setAssociatedObject(stack, &kDYYYLiveCardStackOriginalKey,
+                             [NSValue valueWithCGAffineTransform:transform],
+                             OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
 + (void)applyLiveCardScaleToStack:(UIView *)view {
     if (!view) {
         return;
@@ -2409,7 +2426,9 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
         want = CGAffineTransformConcat(m, base);
     }
     if (!CGAffineTransformEqualToTransform(view.transform, want)) {
+        gDYYYLiveCardScaling = YES;   // 防止 setTransform: 误判为"抖音重置"
         view.transform = want;
+        gDYYYLiveCardScaling = NO;
     }
 }
 

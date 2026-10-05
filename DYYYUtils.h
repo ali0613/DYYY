@@ -315,6 +315,15 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)applyLiveCardScaleToStack:(UIView *)stack;
 
 /**
+ * 抖音重置某个 stack 的变换时调用：把它作为新的「基准值」缓存起来，
+ * 之后 applyLiveCardScaleToStack: 会基于这份最新基准叠加缩放（避免用过期的旧值导致位置偏移）。
+ */
++ (void)resetLiveCardBaseTransform:(CGAffineTransform)transform forStack:(UIView *)stack;
+
+/** 当前是否正由 DYYY 在写入直播卡片缩放（用于 setTransform: 防自触发） */
++ (BOOL)isApplyingLiveCardScale;
+
+/**
  * 直播卡片里「居中元素」（点击进入直播间 / 翻转按钮，类 AWELivePrestreamGuideView）的缩放。
  * 绕中心缩放，不加左边缘补偿 —— 否则会把居中的按钮推偏。
  */

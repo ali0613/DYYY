@@ -7980,6 +7980,27 @@ static NSHashTable *processedParentViews = nil;
 
 %end
 
+// 直播卡片缩放：接管 setTransform:
+// 抖音会把它自己的变换（如 (0,-20)）重新写回来，此前我在别处缓存的"基准值"会过期 ——
+// 后果一是位置偏移（少了一份抖音的位移，整块往下掉），二是要等下次布局才重缩（划回来能看到缩放过程）。
+// 这里在抖音写入的那一刻更新基准值并立刻重新缩放（同一帧内完成），两个问题一起解决。
+%hook IESLiveStackView
+
+- (void)setTransform:(CGAffineTransform)transform {
+	%orig(transform);
+
+	if ([DYYYUtils isApplyingLiveCardScale]) {
+		return;   // 这是 DYYY 自己写入的缩放，忽略，避免自触发
+	}
+	if (![self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
+		return;
+	}
+	[DYYYUtils resetLiveCardBaseTransform:transform forStack:self];
+	[DYYYUtils applyLiveCardScaleToStack:self];
+}
+
+%end
+
 %hook AWELiveFeedLabelTagView
 - (void)layoutSubviews {
 
