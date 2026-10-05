@@ -4150,6 +4150,21 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 
 %hook AWEUserNameLabel
 
+- (void)setText:(NSString *)text {
+	%orig(text);
+	// 复用时文字一定会被赋值 —— 借此把「祖父视图偏移」补上。
+	// 原来只在 layoutSubviews 里设，无文案视频复用时不重跑布局，偏移就丢了。
+	self.transform = CGAffineTransformIdentity;
+	NSString *dyOffsetValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameVerticalOffset"];
+	CGFloat dyOffset = dyOffsetValue.length > 0 ? [dyOffsetValue floatValue] : 0;
+	UIView *dyParent = self.superview;
+	UIView *dyGrandParent = dyParent.superview;
+	if (dyGrandParent && [dyGrandParent.superview isKindOfClass:%c(AWEBaseElementView)]) {
+		CGRect dyFrame = dyGrandParent.frame;
+		dyGrandParent.transform = CGAffineTransformMakeTranslation(-dyFrame.origin.x, dyOffset);
+	}
+}
+
 - (void)layoutSubviews {
     %orig;
 
