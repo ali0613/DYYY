@@ -7951,29 +7951,41 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
-// 首页直播卡片（「直播中」卡片）里的昵称/文案缩放
-// 结构由 FLEX 现场确认：IESLiveStackView → IESLiveLayoutContainerView → AWEBaseElementView
-// 与直播预览页那套用的是同一个设置 DYYYNicknameScale；未设置时零影响。
-%hook IESLiveLayoutContainerView
+// 首页直播卡片（「直播中」卡片）整块缩放
+// 容器为 IESLiveStackView（FLEX 现场确认：frame (57,-122;404×79)，本身自带 transform [1,0,0,1,0,-20]）
+// 两个要点：
+//   1) 该视图自带抖音的 transform —— 先缓存原始值，再在其上叠加缩放，绝不覆盖；
+//   2) 必须用 layer.transform —— UIView.transform 会被 UIStackView 布局反复叠加导致比例失真。
+static char kDYYYLiveStackOriginalTransformKey;
+
+%hook IESLiveStackView
 
 - (void)layoutSubviews {
 	%orig;
 
-	const CGFloat scaleValue = DYYYGetFloat(@"DYYYNicknameScale");
-	if (scaleValue == 0.0) {
+	NSValue *dyOrig = objc_getAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey);
+	if (!dyOrig) {
+		dyOrig = [NSValue valueWithCATransform3D:self.layer.transform];
+		objc_setAssociatedObject(self, &kDYYYLiveStackOriginalTransformKey, dyOrig, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	}
+
+	const CGFloat dyScale = DYYYGetFloat(@"DYYYNicknameScale");
+	CATransform3D dyBase = [dyOrig CATransform3DValue];
+	if (dyScale == 0.0) {
+		if (!CATransform3DEqualToTransform(self.layer.transform, dyBase)) {
+			self.layer.transform = dyBase;
+		}
 		return;
 	}
-	const CGFloat targetScale = MAX(0.01, scaleValue);
-	// 注意：不能用 UIView.transform —— 这个容器是 UIStackView 的子视图，
-	// stack 会按「缩放后的 frame」重新布局，导致比例被反复叠加、位置跑偏。
-	// 改用 layer.transform（Core Animation 层）：不参与布局，stack 无感知，
-	// 缩放精确等于设置值；同时补一个平移把左边缘钉住（layer 也是绕中心缩的）。
-	const CGFloat dyBoundsWidth = self.bounds.size.width;
-	const CGFloat dyTx = (dyBoundsWidth - dyBoundsWidth * targetScale) / -2.0;   // 负值：把左边缘拉回原位
-	CATransform3D dyLayerTransform = CATransform3DMakeTranslation(dyTx, 0, 0);
-	dyLayerTransform = CATransform3DScale(dyLayerTransform, targetScale, targetScale, 1.0);
-	if (!CATransform3DEqualToTransform(self.layer.transform, dyLayerTransform)) {
-		self.layer.transform = dyLayerTransform;
+
+	const CGFloat dyTarget = MAX(0.01, dyScale);
+	const CGFloat dyWidth = self.bounds.size.width;
+	const CGFloat dyTx = (dyWidth - dyWidth * dyTarget) / -2.0;   // 负值：把左边缘拉回原位
+	CATransform3D dyT = CATransform3DConcat(CATransform3DMakeTranslation(dyTx, 0, 0),
+	                                        CATransform3DMakeScale(dyTarget, dyTarget, 1.0));
+	dyT = CATransform3DConcat(dyT, dyBase);
+	if (!CATransform3DEqualToTransform(self.layer.transform, dyT)) {
+		self.layer.transform = dyT;
 	}
 }
 
