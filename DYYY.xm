@@ -7964,11 +7964,17 @@ static NSHashTable *processedParentViews = nil;
 		return;
 	}
 	const CGFloat targetScale = MAX(0.01, scaleValue);
-	// transform 是围绕中心缩放的，必须补一个平移把左边缘钉住，
-	// 否则整块会往中间缩、位置跑偏（预览页那套也是这么处理的）。
+	// 注意：不能用 UIView.transform —— 这个容器是 UIStackView 的子视图，
+	// stack 会按「缩放后的 frame」重新布局，导致比例被反复叠加、位置跑偏。
+	// 改用 layer.transform（Core Animation 层）：不参与布局，stack 无感知，
+	// 缩放精确等于设置值；同时补一个平移把左边缘钉住（layer 也是绕中心缩的）。
 	const CGFloat dyBoundsWidth = self.bounds.size.width;
-	const CGFloat dyTx = (dyBoundsWidth - dyBoundsWidth * targetScale) / -2.0;
-	self.transform = CGAffineTransformMake(targetScale, 0, 0, targetScale, dyTx, 0);
+	const CGFloat dyTx = (dyBoundsWidth - dyBoundsWidth * targetScale) / -2.0;   // 负值：把左边缘拉回原位
+	CATransform3D dyLayerTransform = CATransform3DMakeTranslation(dyTx, 0, 0);
+	dyLayerTransform = CATransform3DScale(dyLayerTransform, targetScale, targetScale, 1.0);
+	if (!CATransform3DEqualToTransform(self.layer.transform, dyLayerTransform)) {
+		self.layer.transform = dyLayerTransform;
+	}
 }
 
 %end
