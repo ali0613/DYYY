@@ -301,6 +301,13 @@ NS_ASSUME_NONNULL_BEGIN
  * @param filePath 输出文件路径，如 @"/var/mobile/douyin_view_tree.txt"。在沙盒环境下会自动
  *                 fallback 到 Documents 目录。
  */
+/**
+ * 把视图自身（若是标签/文本视图）及其内部最多 4 层内的文本控件字体换成粗体。
+ * 只替换字体本身（addAttribute），保留话题高亮等其它富文本属性；已是粗体则跳过（幂等）。
+ * 用于「文案字体加粗」——抖音 40.x 的文案既可能直接是标签，也可能包在滚动容器里。
+ */
++ (void)applyBoldFontRecursivelyInView:(UIView *)root;
+
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;
 
 #pragma mark - Version Utilities

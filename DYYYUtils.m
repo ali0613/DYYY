@@ -2370,6 +2370,62 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
     }
 }
 
++ (void)applyBoldFontRecursivelyInView:(UIView *)root {
+    if (!root) {
+        return;
+    }
+    NSMutableArray *stack = [NSMutableArray arrayWithObject:root];
+    int guard = 0;
+    while (stack.count > 0 && guard++ < 80) {
+        UIView *v = stack.lastObject;
+        [stack removeLastObject];
+
+        if ([v isKindOfClass:[UILabel class]] || [v isKindOfClass:[UITextView class]]) {
+            id target = v;
+            NSAttributedString *attr = [target attributedText];
+            if (attr.length > 0) {
+                UIFont *fallback = [target font];
+                NSMutableAttributedString *bold = [attr mutableCopy];
+                [attr enumerateAttribute:NSFontAttributeName
+                                 inRange:NSMakeRange(0, attr.length)
+                                 options:0
+                              usingBlock:^(UIFont *font, NSRange range, BOOL *stop) {
+                    UIFont *base = font ?: fallback;
+                    if (!base) {
+                        return;
+                    }
+                    UIFontDescriptorSymbolicTraits traits = base.fontDescriptor.symbolicTraits;
+                    if (traits & UIFontDescriptorTraitBold) {
+                        return;
+                    }
+                    UIFontDescriptor *desc = [base.fontDescriptor fontDescriptorWithSymbolicTraits:(traits | UIFontDescriptorTraitBold)];
+                    UIFont *boldFont = desc ? [UIFont fontWithDescriptor:desc size:base.pointSize] : nil;
+                    if (boldFont) {
+                        [bold addAttribute:NSFontAttributeName value:boldFont range:range];
+                    }
+                }];
+                if (![bold isEqualToAttributedString:attr]) {
+                    [target setAttributedText:bold];
+                }
+            } else {
+                NSString *plain = [target text];
+                UIFont *base = [target font];
+                if (plain.length > 0 && base && !(base.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
+                    UIFontDescriptor *desc = [base.fontDescriptor fontDescriptorWithSymbolicTraits:(base.fontDescriptor.symbolicTraits | UIFontDescriptorTraitBold)];
+                    UIFont *boldFont = desc ? [UIFont fontWithDescriptor:desc size:base.pointSize] : nil;
+                    if (boldFont && [target respondsToSelector:@selector(setFont:)]) {
+                        [target setFont:boldFont];
+                    }
+                }
+            }
+        }
+
+        for (UIView *sub in v.subviews) {
+            [stack addObject:sub];
+        }
+    }
+}
+
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath {
     if (filePath.length == 0) {
         return;
