@@ -12992,6 +12992,17 @@ static Class TagViewClass = nil;
 
 %hook AWELandscapeFeedEntryView
 
+- (void)setFrame:(CGRect)frame {
+	%orig(frame);
+	// 「昵称文案缩放」的第二个补套入口。
+	// 无文案的视频复用时，抖音可能**不写 transform**（那样 setTransform: 就不会触发），
+	// 但一定会重新摆 frame —— 所以这里也补一次。
+	// 直接把当前 transform 回灌一次，复用 setTransform: 里那套逻辑，避免重复代码。
+	if (!gDYYYFeedNicknameScaling) {
+		self.transform = self.transform;
+	}
+}
+
 - (void)setTransform:(CGAffineTransform)transform {
 	%orig(transform);
 
