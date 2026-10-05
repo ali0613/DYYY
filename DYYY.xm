@@ -7953,6 +7953,19 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
+// 直播卡片（信息流里的「直播中」卡片）中「徽标 + 昵称 + 文案」的整块缩放。
+// 卡片由若干「行容器」组成（IESLiveLayoutContainerView，例如 180×20 的「直播中/你的关注」行）；
+// 在这里（行自身 layoutSubviews）处理 —— 此时宽度已确定，是最可靠的时机，
+// 具体判别与计算见 DYYYUtils applyLiveCardScaleToStack:（外层全宽容器会被宽度条件排除）。
+%hook IESLiveLayoutContainerView
+
+- (void)layoutSubviews {
+	%orig;
+	[DYYYUtils applyLiveCardScaleToStack:(UIView *)(id)self];
+}
+
+%end
+
 %hook AWELiveFeedLabelTagView
 - (void)layoutSubviews {
 

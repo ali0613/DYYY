@@ -2372,51 +2372,54 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
     }
 }
 
-+ (void)applyLiveCardScaleToStack:(UIView *)stack {
-    if (!stack) {
++ (void)applyLiveCardScaleToStack:(UIView *)view {
+    if (!view) {
         return;
     }
-    // 缓存抖音给该视图设置的原始变换（直播卡片上它自带 (0,-20) 上移）：只叠加，不覆盖。
-    static char kDYYYLiveCardScaleOriginalKey;
-    NSValue *orig = objc_getAssociatedObject(stack, &kDYYYLiveCardScaleOriginalKey);
-    if (!orig) {
-        orig = [NSValue valueWithCGAffineTransform:stack.transform];
-        objc_setAssociatedObject(stack, &kDYYYLiveCardScaleOriginalKey, orig, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    }
-    CGAffineTransform base = [orig CGAffineTransformValue];
-
-    // FLEX 现场确认的目标判别：
-    //   目标是「徽标 + 昵称 + 文案」那个 stack —— 它含有若干**窄的行容器**
-    //   （IESLiveLayoutContainerView，例如 180×20，即「直播中/你的关注」那一行）；
-    //   而最外层 stack（子视图是全宽 404 容器）、高度为 0 的空 stack 一律排除。
-    BOOL isTarget = NO;
-    if (stack.bounds.size.height > 0) {
-        for (UIView *sub in stack.subviews) {
+    // 缩放对象是「行容器」（IESLiveLayoutContainerView，例如 180×20 的「直播中/你的关注」行）——
+    // 压缩 stack 本身无效（FLEX 实测），而缩行容器已被验证有效。
+    // 传进来是 IESLiveStackView 时遍历其子视图找行；传进来本身就是行则直接处理。
+    NSMutableArray *targets = [NSMutableArray array];
+    BOOL isStackLike = [view isKindOfClass:NSClassFromString(@"IESLiveStackView")];
+    if (isStackLike) {
+        for (UIView *sub in view.subviews) {
             if ([NSStringFromClass([sub class]) containsString:@"IESLiveLayoutContainerView"]) {
-                const CGFloat w = sub.bounds.size.width;
-                if (w > 0 && w < 300) {
-                    isTarget = YES;
-                    break;
-                }
+                [targets addObject:sub];
             }
         }
-    }
-    const CGFloat scale = DYYYGetFloat(@"DYYYNicknameScale");
-
-    CGAffineTransform want;
-    if (!isTarget || scale == 0.0) {
-        want = base;   // 非目标 / 未启用：恢复原状，避免残留
     } else {
-        const CGFloat target = MAX(0.01, scale);
-        const CGFloat width = stack.bounds.size.width;
-        const CGFloat tx = (width - width * target) / -2.0;   // 负值：把左边缘拉回原位
-        want = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
-                                       CGAffineTransformMakeScale(target, target));
-        want = CGAffineTransformConcat(want, base);
+        [targets addObject:view];
     }
 
-    if (!CGAffineTransformEqualToTransform(stack.transform, want)) {
-        stack.transform = want;
+    const CGFloat scale = DYYYGetFloat(@"DYYYNicknameScale");
+    static char kDYYYLiveCardRowOriginalKey;
+
+    for (UIView *row in targets) {
+        const CGFloat w = row.bounds.size.width;
+        const CGFloat h = row.bounds.size.height;
+        // 排除外层全宽容器（404）与尚未布局/空的行：宽度未知时留到下一次调用再处理
+        if (w <= 0 || w >= 300 || h <= 0) {
+            continue;
+        }
+
+        NSValue *orig = objc_getAssociatedObject(row, &kDYYYLiveCardRowOriginalKey);
+        if (!orig) {
+            orig = [NSValue valueWithCGAffineTransform:row.transform];
+            objc_setAssociatedObject(row, &kDYYYLiveCardRowOriginalKey, orig, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        CGAffineTransform base = [orig CGAffineTransformValue];
+
+        CGAffineTransform want = base;
+        if (scale != 0.0) {
+            const CGFloat target = MAX(0.01, scale);
+            const CGFloat tx = (w - w * target) / -2.0;   // 负值：把左边缘拉回原位
+            CGAffineTransform m = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
+                                                          CGAffineTransformMakeScale(target, target));
+            want = CGAffineTransformConcat(m, base);
+        }
+        if (!CGAffineTransformEqualToTransform(row.transform, want)) {
+            row.transform = want;
+        }
     }
 }
 
