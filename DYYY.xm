@@ -9391,6 +9391,12 @@ static BOOL gDYYYElementShiftApplying = NO;
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
 	}
+	// 只处理右侧栏所在的交互层（首页/详情页均为 AWEPlayInteractionViewController），
+	// 这样评论面板等其它界面里的右侧按钮不会被一起上移。
+	UIViewController *dyOwnerVC = [DYYYUtils firstAvailableViewControllerFromView:self];
+	if (!dyOwnerVC || ![dyOwnerVC isKindOfClass:NSClassFromString(@"AWEPlayInteractionViewController")]) {
+		return;
+	}
 	CGRect rectInWindow = [self convertRect:self.bounds toView:nil];
 	if (rectInWindow.origin.x < [UIScreen mainScreen].bounds.size.width * 0.5) {
 		return;
@@ -9405,6 +9411,12 @@ static BOOL gDYYYElementShiftApplying = NO;
 
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
+		return;
+	}
+	// 只处理右侧栏所在的交互层（首页/详情页均为 AWEPlayInteractionViewController），
+	// 这样评论面板等其它界面里的右侧按钮不会被一起上移。
+	UIViewController *dyOwnerVC = [DYYYUtils firstAvailableViewControllerFromView:self];
+	if (!dyOwnerVC || ![dyOwnerVC isKindOfClass:NSClassFromString(@"AWEPlayInteractionViewController")]) {
 		return;
 	}
 	CGRect rectInWindow = [self convertRect:self.bounds toView:nil];
