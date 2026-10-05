@@ -9378,24 +9378,42 @@ static NSHashTable *processedParentViews = nil;
 
 // 右侧栏上移（首页/详情页右侧竖列的每个元素：头像、点赞、评论、收藏、分享、音乐碟）
 // 元素外层的 AWEBaseElementView 由 FLEX 现场确认（推广徽标的 superview 即该类）。
-// 用「窗口坐标」判断是否位于屏幕右半边，避免影响顶部/底部/文案等其它元素。
+// 位移在 setFrame:（抖音每次定位都会走）里补，避免"布局时机早于最终定位"导致时灵时不灵；
+// 只在元素已进入窗口且窗口坐标位于屏幕右半边时才应用，避免影响顶部/底部/文案等元素。
+static BOOL gDYYYElementShiftApplying = NO;
+
 %hook AWEBaseElementView
+
+- (void)setFrame:(CGRect)frame {
+	%orig(frame);
+
+	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
+	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
+		return;
+	}
+	CGRect rectInWindow = [self convertRect:self.bounds toView:nil];
+	if (rectInWindow.origin.x < [UIScreen mainScreen].bounds.size.width * 0.5) {
+		return;
+	}
+	gDYYYElementShiftApplying = YES;
+	self.transform = CGAffineTransformMakeTranslation(0, -shiftUp);
+	gDYYYElementShiftApplying = NO;
+}
 
 - (void)layoutSubviews {
 	%orig;
 
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
-	if (shiftUp == 0.0) {
+	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
 	}
-
 	CGRect rectInWindow = [self convertRect:self.bounds toView:nil];
-	const CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-	if (rectInWindow.origin.x < screenWidth * 0.5) {
+	if (rectInWindow.origin.x < [UIScreen mainScreen].bounds.size.width * 0.5) {
 		return;
 	}
-
+	gDYYYElementShiftApplying = YES;
 	self.transform = CGAffineTransformMakeTranslation(0, -shiftUp);
+	gDYYYElementShiftApplying = NO;
 }
 
 %end
