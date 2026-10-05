@@ -4153,59 +4153,6 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 //   AWEElementStackView {9.33, 741.67} (313×97)
 //     └ AWEBaseElementView (313×36) └ UIStackView (229×24) └ AWEBButton 「@xxx」(158×24)
 // 上游那套 hook 的是 AWEUserNameLabel —— 该版本已不渲染昵称，所以完全失效（日志实测一次都没执行）。
-// 「昵称文案缩放」的兜底触发：挂在窗口布局上。
-// 前面挂 AWEBButton（layoutSubviews / didMoveToWindow）与 AWEBaseElementView 都实测"不触发"，
-// 窗口布局则是必然会发生的 —— 这里做一次「限流 + 受限规模」的扫描，找到昵称按钮就套缩放。
-%hook UIWindow
-
-- (void)layoutSubviews {
-	%orig;
-
-	NSString *dyWinScaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
-	CGFloat dyWinScale = dyWinScaleValue.length > 0 ? [dyWinScaleValue floatValue] : 1.0;
-	if (dyWinScale <= 0 || dyWinScale == 1.0) {
-		return;   // 未启用缩放：完全不干预
-	}
-	static NSTimeInterval dyWinLastScan = 0;
-	NSTimeInterval dyWinNow = [NSDate date].timeIntervalSince1970;
-	if (dyWinNow - dyWinLastScan < 1.0) {
-		return;   // 限流：每秒最多扫一次，避免影响性能
-	}
-	dyWinLastScan = dyWinNow;
-
-	NSMutableArray *dyWinQueue = [NSMutableArray arrayWithObject:self];
-	int dyWinGuard = 0;
-	while (dyWinQueue.count > 0 && dyWinGuard++ < 1200) {
-		UIView *dyWinNode = dyWinQueue.lastObject;
-		[dyWinQueue removeLastObject];
-		if ([NSStringFromClass([dyWinNode class]) containsString:@"AWEBButton"]) {
-			[DYYYUtils applyFeedNicknameScaleForButton:dyWinNode];
-		}
-		for (UIView *dyWinSub in dyWinNode.subviews) {
-			[dyWinQueue addObject:dyWinSub];
-		}
-	}
-}
-
-%end
-
-%hook AWEBButton
-
-- (void)didMoveToWindow {
-	%orig;
-	// 首次打开（例如从历史记录进入）时，layoutSubviews 可能发生在视图尚未挂进窗口的时刻，
-	// 被下面的 window 判断挡掉、之后又不再布局 —— 于是"首次不生效"。
-	// 这里在挂进窗口的那一刻（层级已完整）再补一次。
-	[DYYYUtils applyFeedNicknameScaleForButton:(UIView *)(id)self];
-}
-
-- (void)layoutSubviews {
-	%orig;
-	[DYYYUtils applyFeedNicknameScaleForButton:(UIView *)(id)self];
-}
-
-%end
-
 %hook AWEUserNameLabel
 
 - (void)didMoveToWindow {
@@ -9791,20 +9738,6 @@ static BOOL gDYYYElementShiftApplying = NO;
 		}
 	}
 
-	// 「昵称文案缩放」：挂在这里的原因 —— AWEBButton 的 layoutSubviews / didMoveToWindow
-	// 在"从历史记录首次打开"时一次都不触发（诊断实测无任何记录），而 AWEBaseElementView 的
-	// layoutSubviews 一定会跑（汽水提醒条就在这段里处理）。找到那个以 @ 开头的昵称按钮，
-	// 交给 DYYYUtils 去缩放它的三层之上的「作者信息整块」。
-	if (self.window) {
-		for (UIView *dyChild in self.subviews) {
-			for (UIView *dyBtn in dyChild.subviews) {
-				if ([NSStringFromClass([dyBtn class]) containsString:@"AWEBButton"]) {
-					[DYYYUtils applyFeedNicknameScaleForButton:dyBtn];
-				}
-			}
-		}
-	}
-
 	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
 	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
 		return;
@@ -12713,19 +12646,6 @@ static Class TagViewClass = nil;
                         break;
                     }
                 }
-            }
-        }
-
-        // 两个判断都不成立时：说明元素还没挂上（典型场景：从历史记录「首次打开」）。
-        // 这一轮做不了任何事，稍后补排一次 —— 否则之后再没有第二次布局，缩放就永远不生效。
-        if (!isRightStack && !isLeftStack) {
-            static NSTimeInterval dyRetryLast = 0;
-            NSTimeInterval dyRetryNow = [NSDate date].timeIntervalSince1970;
-            if (dyRetryNow - dyRetryLast > 0.3) {
-                dyRetryLast = dyRetryNow;
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [self setNeedsLayout];
-                });
             }
         }
 
