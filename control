@@ -1,6 +1,6 @@
 Package: com.huami.dyyy
 Name: DYYY
-Version: 2.2-9fork32
+Version: 2.2-9fork36
 Description: 抖音 UI 调整（个人维护分支）：顶栏/底栏精简、隐藏面板、下载、倍速、清屏、ABTest 等。基线 Wtrwx/DYYY tag DYYY_2.2-9#1687。
 Homepage: https://github.com/Wtrwx/DYYY
 Section: Tweaks

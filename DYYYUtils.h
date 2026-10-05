@@ -357,6 +357,13 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (BOOL)isFullScreenAdjustEnabled;
 
+/**
+ * 修复「横屏自动翻转往返后元素错乱」：竖屏下若某元素被摆到了窗口右边界之外
+ * （说明它还在用横屏的坐标系），就往上找到第一个"宽度仍按横屏算"的祖先容器，
+ * 下一帧强制它重排一次，逼抖音按竖屏尺寸重算坐标。
+ */
++ (void)fixStaleLandscapeLayoutForView:(UIView *)view;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;

@@ -2448,6 +2448,55 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
 static BOOL gDYYYFeedNicknameScaleApplying = NO;
 static char kDYYYFeedEntryBaseTransformKey;
 
++ (void)fixStaleLandscapeLayoutForView:(UIView *)view {
+    if (!view) {
+        return;
+    }
+    UIWindow *win = view.window;
+    if (!win) {
+        return;
+    }
+    const CGFloat winWidth = win.bounds.size.width;
+    // 只在竖屏、且元素被摆到窗口右边界之外时才处理（= 它还在用横屏坐标系）
+    if (winWidth > win.bounds.size.height) {
+        return;
+    }
+    if (CGRectGetMaxX(view.frame) <= winWidth + 1.0) {
+        return;
+    }
+    // 往上找第一个「宽度仍按横屏算」的祖先：它就是那把错尺子的来源
+    UIView *target = nil;
+    UIView *ancestor = view.superview;
+    for (int level = 0; level < 8 && ancestor; level++) {
+        if (ancestor.bounds.size.width > winWidth + 1.0) {
+            target = ancestor;
+            break;
+        }
+        ancestor = ancestor.superview;
+    }
+    if (!target) {
+        target = view.superview;
+    }
+    if (!target) {
+        return;
+    }
+    // 限流：同一个容器 2 秒内只强制重排一次 —— 万一重排没治好，也不至于变成"每次布局都重排"的循环。
+    static char kLastFixKey;
+    NSNumber *last = objc_getAssociatedObject(target, &kLastFixKey);
+    NSTimeInterval now = [NSDate date].timeIntervalSince1970;
+    if (last && now - last.doubleValue < 2.0) {
+        return;
+    }
+    objc_setAssociatedObject(target, &kLastFixKey, @(now), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    // 下一帧再动（此刻正在布局中，避免重入）；重设一次 frame 触发抖音自己的重排逻辑
+    dispatch_async(dispatch_get_main_queue(), ^{
+        CGRect frame = target.frame;
+        target.frame = frame;
+        [target setNeedsLayout];
+        [target layoutIfNeeded];
+    });
+}
+
 + (BOOL)isFullScreenAdjustEnabled {
     if (!DYYYGetBool(@"DYYYEnableFullScreen")) {
         return NO;

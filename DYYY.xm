@@ -9657,6 +9657,10 @@ static BOOL gDYYYElementShiftApplying = NO;
 - (void)layoutSubviews {
 	%orig;
 
+	// 横屏自动翻转往返后，元素可能仍按横屏坐标排布（表现：翻回竖屏后整块错乱、下滑几个视频复用才自愈）。
+	// 竖屏下若发现元素被摆到窗口右边界之外，就强制它的父容器重排一次（方案 A）。
+	[DYYYUtils fixStaleLandscapeLayoutForView:self];
+
 	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
 	// 挂既有开关「隐藏去汽水听」DYYYHideQuqishuiting，不新增设置项；
 	// 类名首字母不确定，所以按「类名包含 DiversionBar」匹配。
