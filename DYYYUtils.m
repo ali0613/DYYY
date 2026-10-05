@@ -2460,9 +2460,12 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
 
     const CGFloat scale = DYYYGetFloat(@"DYYYNicknameScale");
     CGAffineTransform want = base;
-    if (scale != 0.0) {
-        const CGFloat target = MAX(0.01, scale);
-        want = CGAffineTransformConcat(CGAffineTransformMakeScale(target, target), base);
+    // 居中元素同样要跟着「上移」走（和块 1 用同一个位移量），否则开启全屏化后按钮会留在原地
+    if (scale != 0.0 || gDYYYLiveCardShiftUp != 0.0) {
+        const CGFloat target = (scale == 0.0) ? 1.0 : MAX(0.01, scale);
+        CGAffineTransform m = CGAffineTransformConcat(CGAffineTransformMakeTranslation(0, -gDYYYLiveCardShiftUp),
+                                                      CGAffineTransformMakeScale(target, target));
+        want = CGAffineTransformConcat(m, base);
     }
     if (!CGAffineTransformEqualToTransform(view.transform, want)) {
         view.transform = want;
