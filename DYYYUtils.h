@@ -314,6 +314,12 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (void)applyLiveCardScaleToStack:(UIView *)stack;
 
+/**
+ * 直播卡片里「居中元素」（点击进入直播间 / 翻转按钮，类 AWELivePrestreamGuideView）的缩放。
+ * 绕中心缩放，不加左边缘补偿 —— 否则会把居中的按钮推偏。
+ */
++ (void)applyLiveCardScaleCentered:(UIView *)view;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;

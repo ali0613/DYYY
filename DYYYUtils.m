@@ -2376,50 +2376,65 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
     if (!view) {
         return;
     }
-    // 缩放对象是「行容器」（IESLiveLayoutContainerView，例如 180×20 的「直播中/你的关注」行）——
-    // 压缩 stack 本身无效（FLEX 实测），而缩行容器已被验证有效。
-    // 传进来是 IESLiveStackView 时遍历其子视图找行；传进来本身就是行则直接处理。
-    NSMutableArray *targets = [NSMutableArray array];
-    BOOL isStackLike = [view isKindOfClass:NSClassFromString(@"IESLiveStackView")];
-    if (isStackLike) {
-        for (UIView *sub in view.subviews) {
-            if ([NSStringFromClass([sub class]) containsString:@"IESLiveLayoutContainerView"]) {
-                [targets addObject:sub];
+    // 块 1：只处理「最内层」那个 stack —— 判据是它的**直接子视图**里存在高度 ≤40 的行容器
+    //（IESLiveLayoutContainerView，例如 180×20 的徽标行、404×22 的底部行）。
+    // 外层几个 stack 的子视图都是较高的容器（109），会被自动排除。
+    BOOL isInnerStack = NO;
+    for (UIView *sub in view.subviews) {
+        if ([NSStringFromClass([sub class]) containsString:@"IESLiveLayoutContainerView"]) {
+            const CGFloat h = sub.bounds.size.height;
+            if (h > 0 && h <= 40) {
+                isInnerStack = YES;
+                break;
             }
         }
-    } else {
-        [targets addObject:view];
     }
 
+    static char kDYYYLiveCardStackOriginalKey;
+    NSValue *orig = objc_getAssociatedObject(view, &kDYYYLiveCardStackOriginalKey);
+    if (!orig) {
+        orig = [NSValue valueWithCGAffineTransform:view.transform];
+        objc_setAssociatedObject(view, &kDYYYLiveCardStackOriginalKey, orig, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    CGAffineTransform base = [orig CGAffineTransformValue];
+
     const CGFloat scale = DYYYGetFloat(@"DYYYNicknameScale");
-    static char kDYYYLiveCardRowOriginalKey;
+    CGAffineTransform want = base;
+    if (isInnerStack && scale != 0.0) {
+        const CGFloat target = MAX(0.01, scale);
+        const CGFloat width = view.bounds.size.width;
+        const CGFloat tx = (width - width * target) / -2.0;   // 负值：把左边缘钉住（行是左对齐的）
+        CGAffineTransform m = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
+                                                      CGAffineTransformMakeScale(target, target));
+        want = CGAffineTransformConcat(m, base);
+    }
+    if (!CGAffineTransformEqualToTransform(view.transform, want)) {
+        view.transform = want;
+    }
+}
 
-    for (UIView *row in targets) {
-        const CGFloat w = row.bounds.size.width;
-        const CGFloat h = row.bounds.size.height;
-        // 排除外层全宽容器（404）与尚未布局/空的行：宽度未知时留到下一次调用再处理
-        if (w <= 0 || w >= 300 || h <= 0) {
-            continue;
-        }
++ (void)applyLiveCardScaleCentered:(UIView *)view {
+    if (!view) {
+        return;
+    }
+    // 块 2：居中元素（点击进入直播间 / 翻转按钮）——绕中心缩放，不加左边缘补偿，
+    // 否则会把居中的按钮推偏。
+    static char kDYYYLiveCardCenteredOriginalKey;
+    NSValue *orig = objc_getAssociatedObject(view, &kDYYYLiveCardCenteredOriginalKey);
+    if (!orig) {
+        orig = [NSValue valueWithCGAffineTransform:view.transform];
+        objc_setAssociatedObject(view, &kDYYYLiveCardCenteredOriginalKey, orig, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    CGAffineTransform base = [orig CGAffineTransformValue];
 
-        NSValue *orig = objc_getAssociatedObject(row, &kDYYYLiveCardRowOriginalKey);
-        if (!orig) {
-            orig = [NSValue valueWithCGAffineTransform:row.transform];
-            objc_setAssociatedObject(row, &kDYYYLiveCardRowOriginalKey, orig, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-        }
-        CGAffineTransform base = [orig CGAffineTransformValue];
-
-        CGAffineTransform want = base;
-        if (scale != 0.0) {
-            const CGFloat target = MAX(0.01, scale);
-            const CGFloat tx = (w - w * target) / -2.0;   // 负值：把左边缘拉回原位
-            CGAffineTransform m = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
-                                                          CGAffineTransformMakeScale(target, target));
-            want = CGAffineTransformConcat(m, base);
-        }
-        if (!CGAffineTransformEqualToTransform(row.transform, want)) {
-            row.transform = want;
-        }
+    const CGFloat scale = DYYYGetFloat(@"DYYYNicknameScale");
+    CGAffineTransform want = base;
+    if (scale != 0.0) {
+        const CGFloat target = MAX(0.01, scale);
+        want = CGAffineTransformConcat(CGAffineTransformMakeScale(target, target), base);
+    }
+    if (!CGAffineTransformEqualToTransform(view.transform, want)) {
+        view.transform = want;
     }
 }
 

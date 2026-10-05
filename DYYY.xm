@@ -7961,7 +7961,21 @@ static NSHashTable *processedParentViews = nil;
 
 - (void)layoutSubviews {
 	%orig;
-	[DYYYUtils applyLiveCardScaleToStack:(UIView *)(id)self];
+	// 行容器的 layoutSubviews 是「宽度已确定」的可靠时机（实测会触发）：
+	// 借它作为入口，去缩放它的 superview —— 也就是包含全部行的那层最内层 IESLiveStackView。
+	[DYYYUtils applyLiveCardScaleToStack:(UIView *)self.superview];
+}
+
+%end
+
+// 直播卡片里的「点击进入直播间」/「翻转」按钮缩放（块 2）。
+// FLEX 现场确认两者同为 AWELivePrestreamGuideView；它们居中排列，
+// 因此绕中心缩放、不加左边缘补偿（加了会被推偏），见 DYYYUtils applyLiveCardScaleCentered:。
+%hook AWELivePrestreamGuideView
+
+- (void)layoutSubviews {
+	%orig;
+	[DYYYUtils applyLiveCardScaleCentered:self];
 }
 
 %end

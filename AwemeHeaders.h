@@ -819,6 +819,10 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 @interface AWEPlayInteractionLiveExtendGuideView : UIView
 @end
 
+// 直播卡片里的「点击进入直播间」/「翻转」按钮（FLEX 现场确认两者同为该类）
+@interface AWELivePrestreamGuideView : UIView
+@end
+
 @interface AWEIMFansGroupTopDynamicDomainTemplateView : UIView
 - (void)layoutSubviews;
 @end
