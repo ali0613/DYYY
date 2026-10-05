@@ -7951,6 +7951,24 @@ static NSHashTable *processedParentViews = nil;
 }
 %end
 
+// 首页直播卡片（「直播中」卡片）里的昵称/文案缩放
+// 结构由 FLEX 现场确认：IESLiveStackView → IESLiveLayoutContainerView → AWEBaseElementView
+// 与直播预览页那套用的是同一个设置 DYYYNicknameScale；未设置时零影响。
+%hook IESLiveLayoutContainerView
+
+- (void)layoutSubviews {
+	%orig;
+
+	const CGFloat scaleValue = DYYYGetFloat(@"DYYYNicknameScale");
+	if (scaleValue == 0.0) {
+		return;
+	}
+	const CGFloat targetScale = MAX(0.01, scaleValue);
+	self.transform = CGAffineTransformMake(targetScale, 0, 0, targetScale, 0, 0);
+}
+
+%end
+
 %hook AWELiveFeedLabelTagView
 - (void)layoutSubviews {
 
