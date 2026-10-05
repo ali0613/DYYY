@@ -2452,6 +2452,29 @@ static char kDYYYFeedEntryBaseTransformKey;
     if (!view) {
         return;
     }
+    // 一次性安装"方向变化"监听：
+    // 翻回竖屏后可能一时半会儿没有任何布局，导致修复要"等一会"才生效；
+    // 这里在方向变化时主动踹一次窗口布局，让下面那段检测立刻跑起来（表现上就是当场恢复）。
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        [[NSNotificationCenter defaultCenter] addObserverForName:UIDeviceOrientationDidChangeNotification
+                                                          object:nil
+                                                           queue:[NSOperationQueue mainQueue]
+                                                      usingBlock:^(NSNotification *note) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                UIWindow *keyWindow = [DYYYUtils getActiveWindow];
+                if (!keyWindow) {
+                    return;
+                }
+                if (keyWindow.bounds.size.width > keyWindow.bounds.size.height) {
+                    return;   // 横屏：不干预
+                }
+                [keyWindow setNeedsLayout];
+                [keyWindow layoutIfNeeded];
+            });
+        }];
+    });
+
     UIWindow *win = view.window;
     if (!win) {
         return;
