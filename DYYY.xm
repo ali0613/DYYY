@@ -4009,12 +4009,18 @@ static BOOL gDYYYDescriptionBoldApplying = NO;
 		dyFont = [UIFont systemFontOfSize:15];
 	}
 	UIFontDescriptorSymbolicTraits dyTraits = dyFont.fontDescriptor.symbolicTraits;
-	UIFont *dyBoldFont = dyFont;
+	UIFont *dyBoldFont = nil;
 	if (!(dyTraits & UIFontDescriptorTraitBold)) {
+		// 先试描述符（保留字族）——但抖音文案用的是 .SFUI-Regular 这类私有字体，
+		// 该路子常常返回「同款常规体」，所以必须校验结果，失败就走系统粗体兜底。
 		UIFontDescriptor *dyDesc = [dyFont.fontDescriptor fontDescriptorWithSymbolicTraits:(dyTraits | UIFontDescriptorTraitBold)];
-		if (dyDesc) {
-			dyBoldFont = [UIFont fontWithDescriptor:dyDesc size:dyFont.pointSize] ?: dyFont;
+		UIFont *dyCandidate = dyDesc ? [UIFont fontWithDescriptor:dyDesc size:dyFont.pointSize] : nil;
+		if (dyCandidate && (dyCandidate.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
+			dyBoldFont = dyCandidate;
 		}
+	}
+	if (!dyBoldFont) {
+		dyBoldFont = [UIFont boldSystemFontOfSize:dyFont.pointSize];   // 必定是粗体
 	}
 	NSMutableAttributedString *dyAttr = [[NSMutableAttributedString alloc] initWithString:dyPlain];
 	[dyAttr addAttribute:NSFontAttributeName value:dyBoldFont range:NSMakeRange(0, dyPlain.length)];

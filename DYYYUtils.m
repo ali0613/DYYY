@@ -2398,11 +2398,17 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
                     if (traits & UIFontDescriptorTraitBold) {
                         return;
                     }
+                    // 抖音文案用的是 .SFUI-Regular 这类私有字体：走描述符常返回「同款常规体」，
+                    // 所以必须校验结果真的变粗，否则用系统粗体兜底。
                     UIFontDescriptor *desc = [base.fontDescriptor fontDescriptorWithSymbolicTraits:(traits | UIFontDescriptorTraitBold)];
                     UIFont *boldFont = desc ? [UIFont fontWithDescriptor:desc size:base.pointSize] : nil;
-                    if (boldFont) {
-                        [bold addAttribute:NSFontAttributeName value:boldFont range:range];
+                    if (boldFont && !(boldFont.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
+                        boldFont = nil;
                     }
+                    if (!boldFont) {
+                        boldFont = [UIFont boldSystemFontOfSize:base.pointSize];
+                    }
+                    [bold addAttribute:NSFontAttributeName value:boldFont range:range];
                 }];
                 if (![bold isEqualToAttributedString:attr]) {
                     [target setAttributedText:bold];
@@ -2413,7 +2419,13 @@ static void DYYYAppendViewTree(UIView *view, NSMutableString *buffer, NSUInteger
                 if (plain.length > 0 && base && !(base.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
                     UIFontDescriptor *desc = [base.fontDescriptor fontDescriptorWithSymbolicTraits:(base.fontDescriptor.symbolicTraits | UIFontDescriptorTraitBold)];
                     UIFont *boldFont = desc ? [UIFont fontWithDescriptor:desc size:base.pointSize] : nil;
-                    if (boldFont && [target respondsToSelector:@selector(setFont:)]) {
+                    if (boldFont && !(boldFont.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold)) {
+                        boldFont = nil;
+                    }
+                    if (!boldFont) {
+                        boldFont = [UIFont boldSystemFontOfSize:base.pointSize];
+                    }
+                    if ([target respondsToSelector:@selector(setFont:)]) {
                         [target setFont:boldFont];
                     }
                 }
