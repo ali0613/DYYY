@@ -9653,16 +9653,20 @@ static BOOL gDYYYElementShiftApplying = NO;
 	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
 	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
 	if (self.window) {
-		gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
-		if (scale > 0 && scale != 1.0) {
-			const CGFloat width = self.bounds.size.width;
-			const CGFloat tx = (width - width * scale) / -2.0;   // 负值：把左边缘钉回原位
-			self.transform = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
-			                                         CGAffineTransformMakeScale(scale, scale));
-		} else {
-			self.transform = CGAffineTransformIdentity;
+		// ⚠️ 试验：暂时停用这里的写入 —— 用来判断「页面上看到的昵称文案缩放」到底是不是这里写的。
+		// 如果停掉后缩放依然存在，说明它是别处写的，这里的写入就是多余的污染源（"缩过了"的来源）。
+		if (NO) {
+			gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
+			if (scale > 0 && scale != 1.0) {
+				const CGFloat width = self.bounds.size.width;
+				const CGFloat tx = (width - width * scale) / -2.0;   // 负值：把左边缘钉回原位
+				self.transform = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
+				                                         CGAffineTransformMakeScale(scale, scale));
+			} else {
+				self.transform = CGAffineTransformIdentity;
+			}
+			gDYYYFeedNicknameScaling = NO;
 		}
-		gDYYYFeedNicknameScaling = NO;
 	}
 
 	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
