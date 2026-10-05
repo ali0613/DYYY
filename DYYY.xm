@@ -7964,7 +7964,11 @@ static NSHashTable *processedParentViews = nil;
 		return;
 	}
 	const CGFloat targetScale = MAX(0.01, scaleValue);
-	self.transform = CGAffineTransformMake(targetScale, 0, 0, targetScale, 0, 0);
+	// transform 是围绕中心缩放的，必须补一个平移把左边缘钉住，
+	// 否则整块会往中间缩、位置跑偏（预览页那套也是这么处理的）。
+	const CGFloat dyBoundsWidth = self.bounds.size.width;
+	const CGFloat dyTx = (dyBoundsWidth - dyBoundsWidth * targetScale) / -2.0;
+	self.transform = CGAffineTransformMake(targetScale, 0, 0, targetScale, dyTx, 0);
 }
 
 %end
