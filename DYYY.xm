@@ -3932,10 +3932,15 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
 
     self.transform = CGAffineTransformIdentity;
 
-    // 文案字体加粗：抖音 40.x 的文案既可能直接是标签，也可能包在滚动容器里，
-    // 统一交给工具方法处理 —— 容器会自动向下找到真正的文本控件。
-    if (DYYYGetBool(@"DYYYBoldDescription")) {
+    // 文案字体加粗：
+    //   setter 那道负责「先赋值」的顺序（第一时间加粗）；
+    //   这里负责「抖音在我之后又赋值」的顺序（布局完成后再确认一次，把被覆盖的补回来）。
+    // 幂等：已是粗体则跳过、值没变不回写 —— 不会反复加粗、不会死循环。
+    if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescriptionBoldApplying) {
+        gDYYYDescriptionBoldApplying = YES;
         [DYYYUtils applyBoldFontRecursivelyInView:self];
+        [self dyyy_directBoldFont];
+        gDYYYDescriptionBoldApplying = NO;
     }
 
     NSString *descriptionOffsetValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDescriptionVerticalOffset"];
@@ -4099,10 +4104,15 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 
     self.transform = CGAffineTransformIdentity;
 
-    // 文案字体加粗：抖音 40.x 的文案既可能直接是标签，也可能包在滚动容器里，
-    // 统一交给工具方法处理 —— 容器会自动向下找到真正的文本控件。
-    if (DYYYGetBool(@"DYYYBoldDescription")) {
+    // 文案字体加粗：
+    //   setter 那道负责「先赋值」的顺序（第一时间加粗）；
+    //   这里负责「抖音在我之后又赋值」的顺序（布局完成后再确认一次，把被覆盖的补回来）。
+    // 幂等：已是粗体则跳过、值没变不回写 —— 不会反复加粗、不会死循环。
+    if (DYYYGetBool(@"DYYYBoldDescription") && !gDYYYDescriptionBoldApplying) {
+        gDYYYDescriptionBoldApplying = YES;
         [DYYYUtils applyBoldFontRecursivelyInView:self];
+        [self dyyy_directBoldFont];
+        gDYYYDescriptionBoldApplying = NO;
     }
 
     NSString *descriptionOffsetValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYDescriptionVerticalOffset"];
