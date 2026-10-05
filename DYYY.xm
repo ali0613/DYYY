@@ -12825,8 +12825,13 @@ static Class TagViewClass = nil;
 
                 CGRect frame = subview.frame;
                 if (DYYYGetBool(@"DYYYEnableFullScreen")) {
-                    frame.size.height = subview.superview.frame.size.height - gCurrentTabBarHeight;
-                    subview.frame = frame;
+                    // 横屏期间不干预：横屏下屏幕高/底栏高全部变样，写进去的错高度会跟着这个 cell，
+                    // 直到 cell 复用重排才恢复 —— 也就是"自动翻转→翻回竖屏后元素错乱、下滑几个视频自愈"。
+                    UIWindow *dyFSWindow = self.window;
+                    if (!(dyFSWindow && dyFSWindow.bounds.size.width > dyFSWindow.bounds.size.height)) {
+                        frame.size.height = subview.superview.frame.size.height - gCurrentTabBarHeight;
+                        subview.frame = frame;
+                    }
                 }
             }
             // 处理作者主页的情况
