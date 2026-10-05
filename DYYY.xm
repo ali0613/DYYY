@@ -4148,6 +4148,61 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 
 %end
 
+// 「昵称文案缩放」（首页）—— 按新版结构重做。
+// FLEX 实测（抖音 40.6.0）：昵称是 AWEBButton，往上三层是作者信息整块：
+//   AWEElementStackView {9.33, 741.67} (313×97)
+//     └ AWEBaseElementView (313×36) └ UIStackView (229×24) └ AWEBButton 「@xxx」(158×24)
+// 上游那套 hook 的是 AWEUserNameLabel —— 该版本已不渲染昵称，所以完全失效（日志实测一次都没执行）。
+%hook AWEBButton
+
+- (void)layoutSubviews {
+	%orig;
+
+	NSString *dyScaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
+	CGFloat dyScale = dyScaleValue.length > 0 ? [dyScaleValue floatValue] : 1.0;
+	if (dyScale <= 0 || dyScale == 1.0 || !self.window) {
+		return;
+	}
+	// 只认「昵称」那个按钮：它的标签文字以 @ 开头。
+	// AWEBButton 是通用按钮类，抖音到处都在用 —— 不加这道判别会把所有按钮所在的块都缩掉。
+	BOOL dyIsNickname = NO;
+	for (UIView *dySub in self.subviews) {
+		if ([dySub isKindOfClass:[UILabel class]]) {
+			NSString *dyText = [(UILabel *)dySub text];
+			if (dyText.length > 0 && [dyText hasPrefix:@"@"]) {
+				dyIsNickname = YES;
+				break;
+			}
+		}
+	}
+	if (!dyIsNickname) {
+		return;
+	}
+	// 往上三层 = 作者信息整块
+	UIView *dyBlock = self.superview.superview.superview;
+	if (!dyBlock) {
+		return;
+	}
+	// 缓存抖音自己的基准变换，在其之上叠加缩放（不覆盖）
+	static char kDYYYFeedBlockBaseKey;
+	NSValue *dyBaseValue = objc_getAssociatedObject(dyBlock, &kDYYYFeedBlockBaseKey);
+	if (!dyBaseValue) {
+		dyBaseValue = [NSValue valueWithCGAffineTransform:dyBlock.transform];
+		objc_setAssociatedObject(dyBlock, &kDYYYFeedBlockBaseKey, dyBaseValue, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+	}
+	const CGFloat dyW = dyBlock.bounds.size.width;
+	const CGFloat dyTx = (dyW - dyW * dyScale) / -2.0;   // 左边缘钉住（内容左对齐）
+	CGAffineTransform dyWant = CGAffineTransformConcat(
+		CGAffineTransformConcat(CGAffineTransformMakeTranslation(dyTx, 0),
+		                        CGAffineTransformMakeScale(dyScale, dyScale)),
+		[dyBaseValue CGAffineTransformValue]);
+	if (!CGAffineTransformEqualToTransform(dyBlock.transform, dyWant)) {
+		dyBlock.transform = dyWant;
+	}
+}
+
+%end
+
 %hook AWEUserNameLabel
 
 - (void)didMoveToWindow {
@@ -4223,6 +4278,31 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
 
         CGAffineTransform translationTransform = CGAffineTransformMakeTranslation(translationX, verticalOffset);
         grandParentView.transform = translationTransform;
+    }
+
+    // ⚠️ 临时诊断：记录层级与那句判断的结果（限 200 行），写到 tmp/dyyy-user.txt
+    {
+        static NSInteger dyDbgCount = 0;
+        if (dyDbgCount < 200) {
+            dyDbgCount++;
+            UIView *dyB0 = self.superview;
+            UIView *dyB1 = dyB0.superview;
+            UIView *dyB2 = dyB1.superview;
+            NSString *dyBLine = [NSString stringWithFormat:@"self=%@ | p0=%@ | p1=%@ | p2=%@ | 判断=%@ | p1.transform=%@ | p1.frame=%@\n",
+                NSStringFromClass([self class]),
+                NSStringFromClass([dyB0 class]),
+                NSStringFromClass([dyB1 class]),
+                NSStringFromClass([dyB2 class]),
+                (dyB1 && [dyB2 isKindOfClass:%c(AWEBaseElementView)]) ? @"通过" : @"不通过",
+                NSStringFromCGAffineTransform(dyB1.transform),
+                NSStringFromCGRect(dyB1.frame)];
+            NSString *dyBPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"dyyy-user.txt"];
+            FILE *dyBFile = fopen(dyBPath.UTF8String, "a");
+            if (dyBFile) {
+                fputs(dyBLine.UTF8String, dyBFile);
+                fclose(dyBFile);
+            }
+        }
     }
 }
 
