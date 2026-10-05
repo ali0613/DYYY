@@ -32,6 +32,8 @@
 static CGFloat gStartY = 0.0;
 // 文案加粗的防重入标志（文件级：文案的标签 hook 与滚动容器 hook 共用）
 static BOOL gDYYYDescBoldApplyingAll = NO;
+// 「昵称文案缩放」防自触发标志（AWELandscapeFeedEntryView 的 setTransform: 与 layoutSubviews 共用）
+static BOOL gDYYYFeedNicknameScaling = NO;
 // 首页直播卡片整块缩放：缓存该视图原始 transform 的关联键（抖音自带 transform，不能覆盖）
 static char kDYYYLiveStackOriginalTransformKey;
 static CGFloat gStartVal = 0.0;
@@ -12978,6 +12980,26 @@ static Class TagViewClass = nil;
 
 %hook AWELandscapeFeedEntryView
 
+- (void)setTransform:(CGAffineTransform)transform {
+	%orig(transform);
+
+	// 「昵称文案缩放」的补套入口。
+	// 抖音在 cell 复用时会把 transform 重置掉；有文案的视频因为布局会重跑，
+	// layoutSubviews 里那段缩放会重新生效 —— 而**无文案的视频**复用时内部没有变化、
+	// 布局不重跑，缩放就丢了。这里在抖音写入的那一刻立刻补回来。
+	if (gDYYYFeedNicknameScaling) {
+		return;   // 是 DYYY 自己写的，忽略
+	}
+	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
+	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
+	if (scale <= 0 || scale == 1.0) {
+		return;   // 未启用缩放：不干预抖音的变换
+	}
+	gDYYYFeedNicknameScaling = YES;
+	self.transform = CGAffineTransformMakeScale(scale, scale);
+	gDYYYFeedNicknameScaling = NO;
+}
+
 - (void)setAlpha:(CGFloat)alpha {
     // 直播卡片缩放：实测 layoutSubviews / didMoveToWindow 在该视图上都不触发，
     // 而本方法（全局透明度）确实在执行（FLEX 里 alpha 0.9 就是证据）—— 借用这个必然触发的入口。
@@ -13039,11 +13061,13 @@ static Class TagViewClass = nil;
 
     NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
     CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
+    gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
     if (scale > 0 && scale != 1.0) {
         self.transform = CGAffineTransformMakeScale(scale, scale);
     } else {
         self.transform = CGAffineTransformIdentity;
     }
+    gDYYYFeedNicknameScaling = NO;
 }
 
 %end
