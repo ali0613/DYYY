@@ -9381,6 +9381,13 @@ static NSHashTable *processedParentViews = nil;
 // （frame 325×61，父视图 AWEBaseElementView，首页与详情页共用同一个类）
 %hook AWEFeedAnchorContainerView
 
+// 接管 setHidden:：任何"想让它显示"的调用都改成隐藏。
+// 这样在第一帧合成之前它就是隐藏的，不会出现"先显示一帧再消失"的闪烁
+//（放在 layoutSubviews 里会晚一拍，cell 复用时还能再闪一次）。
+- (void)setHidden:(BOOL)hidden {
+	%orig(DYYYGetBool(@"DYYYHideTemplateBadge") ? YES : hidden);
+}
+
 - (void)layoutSubviews {
 	%orig;
 	if (DYYYGetBool(@"DYYYHideTemplateBadge")) {
