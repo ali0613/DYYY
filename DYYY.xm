@@ -9645,29 +9645,9 @@ static BOOL gDYYYElementShiftApplying = NO;
 - (void)layoutSubviews {
 	%orig;
 
-	// 「昵称文案缩放」——唯一写入点，三条讲究 ✗：
-	//   1. 必须在 %orig **之后**（抖音布局会重置 transform，写在前面等于没写）；
-	//   2. 必须在下面「右侧栏上移」的提前 return **之前**（那段要求 self.window，复用时可能还没挂窗口）；
-	//   3. 只写给**已挂到窗口上**的视图（这个类也被右侧按钮/底部行使用，预创建视图不能写）。
-	// 另外：缩放是绕中心做的，而文字是左对齐的 —— 不加左边缘补偿就会整体"偏右"，所以要补 tx。
-	NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
-	CGFloat scale = scaleValue.length > 0 ? [scaleValue floatValue] : 1.0;
-	if (self.window) {
-		// ⚠️ 试验：暂时停用这里的写入 —— 用来判断「页面上看到的昵称文案缩放」到底是不是这里写的。
-		// 如果停掉后缩放依然存在，说明它是别处写的，这里的写入就是多余的污染源（"缩过了"的来源）。
-		if (NO) {
-			gDYYYFeedNicknameScaling = YES;   // 防自触发：下面这次写入会回到 setTransform:
-			if (scale > 0 && scale != 1.0) {
-				const CGFloat width = self.bounds.size.width;
-				const CGFloat tx = (width - width * scale) / -2.0;   // 负值：把左边缘钉回原位
-				self.transform = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
-				                                         CGAffineTransformMakeScale(scale, scale));
-			} else {
-				self.transform = CGAffineTransformIdentity;
-			}
-			gDYYYFeedNicknameScaling = NO;
-		}
-	}
+	// 说明：这里原本有一段「昵称文案缩放」的写入，实测证明是多余的 ——
+	// 页面上的缩放是由别处实现的，这一段只是叠加了第二层（造成"缩过了"与"偏右"），故移除。
+	// 保留读取，供下方「右侧栏上移」等逻辑无关联使用的地方不再需要。
 
 	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
 	// 挂既有开关「隐藏去汽水听」DYYYHideQuqishuiting，不新增设置项；
