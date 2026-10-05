@@ -3995,20 +3995,35 @@ static BOOL gDYYYDescriptionBoldApplying = NO;
 
 %new
 - (void)dyyy_directBoldFont {
+	// YYLabel 系（YYTextAsyncLayer 异步渲染）只认「属性里的字体」，
+	// 直接改 font 属性它不理会 —— 所以这里把带粗体属性的富文本构造出来塞回去。
+	NSString *dyPlain = self.text;
+	if (dyPlain.length == 0) {
+		return;
+	}
 	UIFont *dyFont = self.font;
 	if (!dyFont && self.attributedText.length > 0) {
 		dyFont = [self.attributedText attribute:NSFontAttributeName atIndex:0 effectiveRange:NULL];
 	}
 	if (!dyFont) {
-		dyFont = [UIFont systemFontOfSize:15 weight:UIFontWeightRegular];
+		dyFont = [UIFont systemFontOfSize:15];
 	}
 	UIFontDescriptorSymbolicTraits dyTraits = dyFont.fontDescriptor.symbolicTraits;
-	if (dyTraits & UIFontDescriptorTraitBold) {
-		return;
+	UIFont *dyBoldFont = dyFont;
+	if (!(dyTraits & UIFontDescriptorTraitBold)) {
+		UIFontDescriptor *dyDesc = [dyFont.fontDescriptor fontDescriptorWithSymbolicTraits:(dyTraits | UIFontDescriptorTraitBold)];
+		if (dyDesc) {
+			dyBoldFont = [UIFont fontWithDescriptor:dyDesc size:dyFont.pointSize] ?: dyFont;
+		}
 	}
-	UIFontDescriptor *dyDesc = [dyFont.fontDescriptor fontDescriptorWithSymbolicTraits:(dyTraits | UIFontDescriptorTraitBold)];
-	UIFont *dyBoldFont = dyDesc ? [UIFont fontWithDescriptor:dyDesc size:dyFont.pointSize] : nil;
-	if (dyBoldFont) {
+	NSMutableAttributedString *dyAttr = [[NSMutableAttributedString alloc] initWithString:dyPlain];
+	[dyAttr addAttribute:NSFontAttributeName value:dyBoldFont range:NSMakeRange(0, dyPlain.length)];
+	UIColor *dyColor = self.textColor;
+	if (dyColor) {
+		[dyAttr addAttribute:NSForegroundColorAttributeName value:dyColor range:NSMakeRange(0, dyPlain.length)];
+	}
+	if (![dyAttr isEqualToAttributedString:self.attributedText]) {
+		self.attributedText = dyAttr;
 		self.font = dyBoldFont;
 	}
 }
