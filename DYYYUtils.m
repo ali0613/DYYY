@@ -2420,8 +2420,10 @@ static BOOL gDYYYLiveCardScaling = NO;
     if (isInnerStack && scale != 0.0) {
         const CGFloat target = MAX(0.01, scale);
         const CGFloat width = view.bounds.size.width;
-        const CGFloat tx = (width - width * target) / -2.0;   // 负值：把左边缘钉住（行是左对齐的）
-        CGAffineTransform m = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, 0),
+        const CGFloat height = view.bounds.size.height;
+        const CGFloat tx = (width - width * target) / -2.0;    // 负值：把左边缘钉住（内容左对齐）
+        const CGFloat ty = (height - height * target) / -2.0;  // 负值：把上边缘钉住（内容顶对齐）
+        CGAffineTransform m = CGAffineTransformConcat(CGAffineTransformMakeTranslation(tx, ty),
                                                       CGAffineTransformMakeScale(target, target));
         want = CGAffineTransformConcat(m, base);
     }
