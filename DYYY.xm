@@ -3987,9 +3987,8 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
 // 对新版文案的偏移（33.0以上）
 %hook AWEPlayInteractionDescriptionLabel
 
-// ⚠️ 临时诊断版本：此处【不看开关】无条件加粗，用于区分
-//   「开关值没读到」 与 「加粗手法对该类无效」 两种可能。
-// 定位完成后会把开关判断加回来（其余功能不受影响）。
+// 文案字体加粗：setter 这道负责「抖音先赋值」的顺序（第一时间加粗）；
+// layoutSubviews 那道负责「抖音在我之后又赋值」的顺序。两道都必须保留其余属性（只换字体）。
 static BOOL gDYYYDescriptionBoldApplying = NO;
 
 - (void)setAttributedText:(NSAttributedString *)attributedText {
@@ -4014,35 +4013,38 @@ static BOOL gDYYYDescriptionBoldApplying = NO;
 
 %new
 - (void)dyyy_directBoldFont {
-	// YYLabel 系（YYTextAsyncLayer 异步渲染）只认「属性里的字体」，
-	// 直接改 font 属性它不理会 —— 所以这里把带粗体属性的富文本构造出来塞回去。
-	NSString *dyPlain = self.text;
-	if (dyPlain.length == 0) {
-		return;
+	// ⚠️ 数据来源必须是「抖音刚写进去的那份富文本」（self.attributedText）：只在它上面换 NSFontAttributeName，
+	//    其余属性（话题/@/搜索词的 YYTextHighlight、段落、链接）一律原样保留。
+	//    曾经这里是从纯文本 self.text 重建整份富文本 —— 文字看着没变、颜色也照抄 textColor，
+	//    但区间属性全丢了，YYLabel 命中不到高亮 → 文案标签（话题）点了没反应。见 FORK.md 第二十一节。
+	NSAttributedString *dySource = self.attributedText;
+	if (dySource.length == 0) {
+		// 抖音只写了纯文本（没有富文本可保）时才走这条退路 —— 此时没有任何属性可丢。
+		NSString *dyPlain = self.text;
+		if (dyPlain.length == 0) {
+			return;
+		}
+		UIColor *dyPlainColor = self.textColor;
+		dySource = dyPlainColor
+			? [[NSAttributedString alloc] initWithString:dyPlain attributes:@{NSForegroundColorAttributeName : dyPlainColor}]
+			: [[NSAttributedString alloc] initWithString:dyPlain];
 	}
-	UIFont *dyFont = self.font;
-	if (!dyFont && self.attributedText.length > 0) {
-		dyFont = [self.attributedText attribute:NSFontAttributeName atIndex:0 effectiveRange:NULL];
-	}
+	UIFont *dyFont = self.font ?: [dySource attribute:NSFontAttributeName atIndex:0 effectiveRange:NULL];
 	if (!dyFont) {
 		dyFont = [UIFont systemFontOfSize:15];
 	}
-	UIFontDescriptorSymbolicTraits dyTraits = dyFont.fontDescriptor.symbolicTraits;
-	UIFont *dyBoldFont = nil;
-	if (!(dyTraits & UIFontDescriptorTraitBold)) {
-		// 直接指定 PingFangSC-Medium（真机 FLEX 实测有效）；
-		// 描述符那条路对 .SFUI-Regular 这类私有字体只会返回同款常规体，不可靠。
-		dyBoldFont = [UIFont fontWithName:@"PingFangSC-Medium" size:dyFont.pointSize];
+	if (dyFont.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold) {
+		return; // 幂等：已经是粗体（自己回写会重入到这里，必须能直接退出）
 	}
+	// 直接指定 PingFangSC-Medium（真机 FLEX 实测有效）；
+	// 描述符那条路对 .SFUI-Regular 这类私有字体只会返回同款常规体，不可靠。
+	UIFont *dyBoldFont = [UIFont fontWithName:@"PingFangSC-Medium" size:dyFont.pointSize];
 	if (!dyBoldFont) {
 		dyBoldFont = [UIFont boldSystemFontOfSize:dyFont.pointSize];
 	}
-	NSMutableAttributedString *dyAttr = [[NSMutableAttributedString alloc] initWithString:dyPlain];
-	[dyAttr addAttribute:NSFontAttributeName value:dyBoldFont range:NSMakeRange(0, dyPlain.length)];
-	UIColor *dyColor = self.textColor;
-	if (dyColor) {
-		[dyAttr addAttribute:NSForegroundColorAttributeName value:dyColor range:NSMakeRange(0, dyPlain.length)];
-	}
+	// 关键：以「现有富文本」为基础做 mutableCopy，只覆盖字体属性，别的属性一个都不碰。
+	NSMutableAttributedString *dyAttr = [dySource mutableCopy];
+	[dyAttr addAttribute:NSFontAttributeName value:dyBoldFont range:NSMakeRange(0, dyAttr.length)];
 	if (![dyAttr isEqualToAttributedString:self.attributedText]) {
 		self.attributedText = dyAttr;
 		self.font = dyBoldFont;

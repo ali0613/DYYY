@@ -231,6 +231,10 @@ EXC_BREAKPOINT (SIGTRAP) → libswiftCore._assertionFailure → _bridgeCocoaStri
 > 文案有两处 hook（`AWEPlayInteractionDescriptionLabel` 与 `AWEPlayInteractionDescriptionScrollView`），
 > 绑定时机不固定：setter 负责"先赋值"的顺序，`layoutSubviews` 负责"抖音后赋值覆盖"的顺序，两道都要有。
 
+> ⚠️ **硬规则（fork73 起）**：这里说的"重建 attributedText"**必须建立在 `self.attributedText` 之上**（`mutableCopy` + 只 `addAttribute:` 换字体）。
+> 曾经有一版是**从纯文本 `self.text` 重新构造**整份富文本：文字、颜色看着都正常，但话题/@/搜索词的**区间属性被整份丢掉** →
+> **文案标签点了没反应**。事故全过程与教训见第二十一节。
+
 ## 十二、本地出包（**取代第九节的"只能靠 CI"结论**）
 
 **结论：本地可以出可直接安装的包，一轮 1~2 分钟，不需要推 CI。**
@@ -627,6 +631,60 @@ if (isRightStack) {
 - **"身首分离"要多想一层**：我们把"头部"的高度拿掉时，**不在同一套布局体系里**的元素（这里是抖音自己画的
   分隔线，靠它自己对头部高度的假设定位）不会跟着走，会变成"孤儿"留在画面里 ——
   这类元素没法一次性解决，只能**在每次布局后按下去**（`viewDidLayoutSubviews` + 紧判据）。
+
+## 二十一、文案标签点不动：加粗时"从纯文本重建富文本"把区间属性整份抹掉了（fork73 修）
+
+**现象**：开着「文案字体加粗」时，视频文案里的 `#话题#` / `@昵称` / 搜索词**点了没反应**（不跳转）；
+文字本身、颜色、行距看着都正常 —— 所以很难联想到是加粗引起的。
+
+**根因**：抖音 40.x 的文案是 `YYLabel` 系，**"这一下点在不在高亮上"由富文本里挂在字符区间上的属性决定**（`YYTextHighlight`）。
+而「文案加粗」在 2026-10-05 重做时走了一条**把富文本整份重建**的路：
+
+| 时间 | commit | 干了什么 |
+|---|---|---|
+| 10-05 18:17 | `ba8b586` | 诊断版 1：只写 `self.font`（无害，但 YYLabel 不认） |
+| 10-05 18:29 | **`968a35d`** | 诊断版 3：改成 `[[NSMutableAttributedString alloc] initWithString:self.text]` ← **区间属性从这里开始被抹** |
+| 10-05 18:54 | `042b036` | 「正式版」换 `PingFangSC-Medium`，**把重建那一步一起留下了** |
+| 10-05 19:36 | **`558c81f`** | 补 `layoutSubviews` 二次确认 → **每趟布局都再抹一次**，抖音想恢复也恢复不了 |
+
+被抹掉的不只是高亮：段落样式、链接属性同样没了（只是看不出来，所以没人怀疑）。
+第十一节早就写着"**保留话题高亮等属性**"—— **实现和设计意图正好相反**。
+
+**修法（fork73）**：`dyyy_directBoldFont` 改为以 `self.attributedText` 为基准 `mutableCopy`，只覆盖 `NSFontAttributeName`：
+
+```objc
+NSAttributedString *dySource = self.attributedText;   // 抖音刚写进去的那份（含高亮）
+if (dySource.length == 0) { /* 只有"抖音写了纯文本"时才退回 self.text + textColor */ }
+UIFont *dyFont = self.font ?: [dySource attribute:NSFontAttributeName atIndex:0 effectiveRange:NULL];
+if (dyFont.fontDescriptor.symbolicTraits & UIFontDescriptorTraitBold) return;   // 幂等
+NSMutableAttributedString *dyAttr = [dySource mutableCopy];
+[dyAttr addAttribute:NSFontAttributeName value:dyBoldFont range:NSMakeRange(0, dyAttr.length)];
+self.attributedText = dyAttr;   // 高亮 / 段落 / 链接属性全部保留
+```
+
+**为什么敢去掉"重建"**：真正让文案变粗的是**字体名 `PingFangSC-Medium`**（第十一节的 FLEX 实测结论），
+"从纯文本重建"只是当天诊断期的副产品 —— 它换的也只是字体属性，却顺手把别的属性一起丢了。
+
+**可复用教训**：
+
+- **富文本不是字符串**：`initWithString:` 重建 = 静默丢掉全部区间语义（高亮 / 链接 / 段落），
+  而**视觉上通常看不出来**（文字一样、颜色照抄 `textColor`）—— 这类 bug 只能靠"改前先问一句：还有谁在读这些属性"来防；
+- **症状离凶手很远**：报告是"标签点不动"，凶手却在"字体加粗"里。**把改动时间线和症状出现的时间对齐**是最快的定位手段
+  （本次：前一天 18:17~19:36 重做加粗 → 次日报告点不动，四个 commit 全在 3 小时内）；
+- **诊断期的"临时手法"必须回头审**：`ba8b586` / `968a35d` 的提交信息里都明写"临时 / 定位后恢复"，
+  但"临时"的那行代码活到了正式版。**临时手段要么显式记账，要么在恢复开关时连同手法本身一起复核**；
+- 定位手法本身可复用：先**读设置**排除"故意做坏"的开关（`DYYYLabelStyle` / `DYYYDescriptionVerticalOffset` 都是未设置），
+  再让用户**关一个开关复现一次**（0 成本 A/B），比出探针包快得多。
+
+**验收（fork73 装机）**：`#话题#` / `@昵称` 点击恢复正常跳转 ✓；文案仍是粗体、颜色 / 行距 / "展开" 均无变化 ✓。
+
+**附带修正一个旧认知**：`YYLabel` 是 **`UIView` 子类**（不是 `UILabel`），所以
+`DYYYUtils applyBoldFontRecursivelyInView:`（只认 `UILabel` / `UITextView`）**根本碰不到文案标签** ——
+真正让文案变粗的只有 `dyyy_directBoldFont` 这一条路，这也是当初必须单独写它的原因。
+
+> 另：`AWEPlayInteractionDescriptionScrollView` 里那句 `isKindOfClass:DescriptionLabel` **保留未动**：
+> 它的真假取决于这两个类的真实继承关系（`AwemeHeaders.h` 里的声明是猜的，见上条修正），
+> 两种情况都无害；要清得先拿真机 dump 类层级，不划算。
 
 
 
