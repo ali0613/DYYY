@@ -2472,6 +2472,61 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
     }
 }
 
+// 「右侧栏上移」：只对"真正落在屏幕右半边、且整个元素都在屏幕内"的元素写位移。
+// ⚠️ 历史坑（2026-10 实测定位 + 窗口坐标实测 8pt = 10×0.8）：push 转场（例如从观看历史点开视频）
+// 时新页面从屏幕右侧滑入，左块元素在窗口里的 x 会短暂 ≥ 屏宽一半 → 被误判成右侧栏元素、写下 -10；
+// 而这是一次性写入、没人撤销 → 表现是"左块整块偏上、下方留白，且不自己回正，必须滑走划回才恢复"。
+// 所以两件事一起做：
+//   ① 判据补一条"右边缘不越界"：转场中的左块元素右边缘必然越界（x≥214 时右边缘 ≥527 > 428）→ 被挡住；
+//   ② 给写过的元素打标，之后判为"不是右栏元素"时，只要 transform 逐位等于我们当初写的值，就撤销它（自愈）。
+static BOOL gDYYYRightColumnShiftApplying = NO;
+
++ (void)applyRightColumnShiftIfNeeded:(UIView *)element {
+    if (!element) {
+        return;
+    }
+    const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
+    if (shiftUp == 0.0 || gDYYYRightColumnShiftApplying || !element.window) {
+        return;
+    }
+    // 排除评论面板等界面里的按钮：祖先视图链里出现 Comment 类即跳过。
+    // 这里用「排除法」而不是「限定某控制器」——后者依赖调用时机（元素可能还没挂到控制器上），
+    // 会出现同一个元素时灵时不灵的情况。
+    UIView *ancestor = element.superview;
+    for (int level = 0; level < 12 && ancestor; level++) {
+        if ([NSStringFromClass([ancestor class]) containsString:@"Comment"]) {
+            return;
+        }
+        ancestor = ancestor.superview;
+    }
+
+    static char kDYYYRightColumnShiftedKey;
+    const BOOL wasShifted = [objc_getAssociatedObject(element, &kDYYYRightColumnShiftedKey) boolValue];
+    const CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+    const CGRect rectInWindow = [element convertRect:element.bounds toView:nil];
+    const BOOL inRightHalf = (rectInWindow.origin.x >= screenWidth * 0.5);
+    const BOOL fullyOnScreen = (rectInWindow.origin.x + rectInWindow.size.width <= screenWidth + 1.0);
+    const CGAffineTransform ourShift = CGAffineTransformMakeTranslation(0, -shiftUp);
+
+    if (!inRightHalf || !fullyOnScreen) {
+        // 判为"不是右栏元素"：若这份位移正是我们写下的（值逐位相同），撤掉它 —— 自愈转场期间误写的残留。
+        if (wasShifted) {
+            if (CGAffineTransformEqualToTransform(element.transform, ourShift)) {
+                gDYYYRightColumnShiftApplying = YES;
+                element.transform = CGAffineTransformIdentity;
+                gDYYYRightColumnShiftApplying = NO;
+            }
+            objc_setAssociatedObject(element, &kDYYYRightColumnShiftedKey, @(NO), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        }
+        return;
+    }
+
+    gDYYYRightColumnShiftApplying = YES;
+    element.transform = ourShift;
+    gDYYYRightColumnShiftApplying = NO;
+    objc_setAssociatedObject(element, &kDYYYRightColumnShiftedKey, @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root {
     if (!root) {
         return;

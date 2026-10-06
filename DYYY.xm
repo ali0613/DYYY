@@ -9661,62 +9661,22 @@ static NSHashTable *processedParentViews = nil;
 
 // 右侧栏上移（首页/详情页右侧竖列的每个元素：头像、点赞、评论、收藏、分享、音乐碟）
 // 元素外层的 AWEBaseElementView 由 FLEX 现场确认（推广徽标的 superview 即该类）。
-// 位移在 setFrame:（抖音每次定位都会走）里补，避免"布局时机早于最终定位"导致时灵时不灵；
-// 只在元素已进入窗口且窗口坐标位于屏幕右半边时才应用，避免影响顶部/底部/文案等元素。
-static BOOL gDYYYElementShiftApplying = NO;
+// 位移在 setFrame:（抖音每次定位都会走）里补，避免"布局时机早于最终定位"导致时灵时不灵。
+// ⚠️ 判据与自愈逻辑已收拢到 DYYYUtils applyRightColumnShiftIfNeeded:（三处入口共用一份，
+//    并且补上了"元素必须整个在屏幕内"这条 —— 否则 push 转场的横向滑入会让左块元素被误判成右栏元素）。
 
 %hook AWEBaseElementView
 
 - (void)setFrame:(CGRect)frame {
 	%orig(frame);
 
-	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
-	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
-		return;
-	}
-	// 排除评论面板等界面里的按钮：祖先视图链里出现 Comment 类即跳过。
-	// 这里用「排除法」而不是「限定某控制器」——后者依赖调用时机（元素可能还没挂到控制器上），
-	// 会出现同一个元素时灵时不灵的情况。
-	UIView *dyAncestor = self.superview;
-	for (int dyLevel = 0; dyLevel < 12 && dyAncestor; dyLevel++) {
-		if ([NSStringFromClass([dyAncestor class]) containsString:@"Comment"]) {
-			return;
-		}
-		dyAncestor = dyAncestor.superview;
-	}
-	CGRect rectInWindow = [self convertRect:self.bounds toView:nil];
-	if (rectInWindow.origin.x < [UIScreen mainScreen].bounds.size.width * 0.5) {
-		return;
-	}
-	gDYYYElementShiftApplying = YES;
-	self.transform = CGAffineTransformMakeTranslation(0, -shiftUp);
-	gDYYYElementShiftApplying = NO;
+	[DYYYUtils applyRightColumnShiftIfNeeded:self];
 }
 
 - (void)didMoveToWindow {
 	%orig;
 
-	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
-	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
-		return;
-	}
-	// 排除评论面板等界面里的按钮：祖先视图链里出现 Comment 类即跳过。
-	// 这里用「排除法」而不是「限定某控制器」——后者依赖调用时机（元素可能还没挂到控制器上），
-	// 会出现同一个元素时灵时不灵的情况。
-	UIView *dyAncestor = self.superview;
-	for (int dyLevel = 0; dyLevel < 12 && dyAncestor; dyLevel++) {
-		if ([NSStringFromClass([dyAncestor class]) containsString:@"Comment"]) {
-			return;
-		}
-		dyAncestor = dyAncestor.superview;
-	}
-	CGRect rectInWindow = [self convertRect:self.bounds toView:nil];
-	if (rectInWindow.origin.x < [UIScreen mainScreen].bounds.size.width * 0.5) {
-		return;
-	}
-	gDYYYElementShiftApplying = YES;
-	self.transform = CGAffineTransformMakeTranslation(0, -shiftUp);
-	gDYYYElementShiftApplying = NO;
+	[DYYYUtils applyRightColumnShiftIfNeeded:self];
 }
 
 - (void)layoutSubviews {
@@ -9729,7 +9689,6 @@ static BOOL gDYYYElementShiftApplying = NO;
 	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
 	// 挂既有开关「隐藏去汽水听」DYYYHideQuqishuiting，不新增设置项；
 	// 类名首字母不确定，所以按「类名包含 DiversionBar」匹配。
-	// 注意：必须放在下面那段「右侧栏上移」的提前 return 之前 —— 开启上移时也要能隐藏。
 	if (DYYYGetBool(@"DYYYHideQuqishuiting")) {
 		for (UIView *dySub in self.subviews) {
 			if ([NSStringFromClass([dySub class]) containsString:@"DiversionBar"]) {
@@ -9738,27 +9697,7 @@ static BOOL gDYYYElementShiftApplying = NO;
 		}
 	}
 
-	const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
-	if (shiftUp == 0.0 || gDYYYElementShiftApplying || !self.window) {
-		return;
-	}
-	// 排除评论面板等界面里的按钮：祖先视图链里出现 Comment 类即跳过。
-	// 这里用「排除法」而不是「限定某控制器」——后者依赖调用时机（元素可能还没挂到控制器上），
-	// 会出现同一个元素时灵时不灵的情况。
-	UIView *dyAncestor = self.superview;
-	for (int dyLevel = 0; dyLevel < 12 && dyAncestor; dyLevel++) {
-		if ([NSStringFromClass([dyAncestor class]) containsString:@"Comment"]) {
-			return;
-		}
-		dyAncestor = dyAncestor.superview;
-	}
-	CGRect rectInWindow = [self convertRect:self.bounds toView:nil];
-	if (rectInWindow.origin.x < [UIScreen mainScreen].bounds.size.width * 0.5) {
-		return;
-	}
-	gDYYYElementShiftApplying = YES;
-	self.transform = CGAffineTransformMakeTranslation(0, -shiftUp);
-	gDYYYElementShiftApplying = NO;
+	[DYYYUtils applyRightColumnShiftIfNeeded:self];
 }
 
 %end

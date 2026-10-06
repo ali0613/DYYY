@@ -337,6 +337,13 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (void)applyLiveCardScaleCentered:(UIView *)view;
 
+/**
+ * 右侧栏上移：只对"真正落在屏幕右半边、且整个元素都在屏幕内"的元素写位移。
+ * 三处入口（setFrame: / didMoveToWindow / layoutSubviews）共用这一份判据。
+ * 内部还负责撤销"转场期间误写到左块元素上的位移"（见实现里的注释）。
+ */
++ (void)applyRightColumnShiftIfNeeded:(UIView *)element;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;
