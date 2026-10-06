@@ -338,13 +338,6 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)applyLiveCardScaleCentered:(UIView *)view;
 
 /**
- * 右侧栏上移：只对"真正落在屏幕右半边、且整个元素都在屏幕内"的元素写位移。
- * 三处入口（setFrame: / didMoveToWindow / layoutSubviews）共用这一份判据。
- * 内部还负责撤销"转场期间误写到左块元素上的位移"（见实现里的注释）。
- */
-+ (void)applyRightColumnShiftIfNeeded:(UIView *)element;
-
-/**
  * 「隐藏去汽水听」：把汽水音乐推广条**所在整行**也一起隐藏。
  * 只在该行里除 DiversionBar 之外没有别的可见内容时才动父视图 ——
  * 因为隐藏条形本身不会让这一行的高度消失（UIStackView 里隐藏的**行**才会塌），不处理就会在底部留一条空白。

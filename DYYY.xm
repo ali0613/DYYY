@@ -9669,32 +9669,18 @@ static NSHashTable *processedParentViews = nil;
 
 %end
 
-// 右侧栏上移（首页/详情页右侧竖列的每个元素：头像、点赞、评论、收藏、分享、音乐碟）
-// 元素外层的 AWEBaseElementView 由 FLEX 现场确认（推广徽标的 superview 即该类）。
-// 位移在 setFrame:（抖音每次定位都会走）里补，避免"布局时机早于最终定位"导致时灵时不灵。
-// ⚠️ 判据与自愈逻辑已收拢到 DYYYUtils applyRightColumnShiftIfNeeded:（三处入口共用一份，
-//    并且补上了"元素必须整个在屏幕内"这条 —— 否则 push 转场的横向滑入会让左块元素被误判成右栏元素）。
+// 「隐藏去汽水听」的兜底层 —— 这里只负责这一件事。
+// ⚠️ 原本这里还挂着「右侧栏上移」的三处入口（setFrame: / didMoveToWindow / layoutSubviews）：
+//    位移已改为在 %hook AWEElementStackView 的右栏分支里**一次写入**（写在容器自己的 transform 上），
+//    那套"右半屏 + 右边缘越界 + 打标自愈 + Comment 排除"的几何判据整段删除 —— 原因见 FORK.md 第十九节。
 
 %hook AWEBaseElementView
-
-- (void)setFrame:(CGRect)frame {
-	%orig(frame);
-
-	[DYYYUtils applyRightColumnShiftIfNeeded:self];
-}
-
-- (void)didMoveToWindow {
-	%orig;
-
-	[DYYYUtils applyRightColumnShiftIfNeeded:self];
-}
 
 - (void)layoutSubviews {
 	%orig;
 
 	// 说明：这里原本有一段「昵称文案缩放」的写入，实测证明是多余的 ——
 	// 页面上的缩放是由别处实现的，这一段只是叠加了第二层（造成"缩过了"与"偏右"），故移除。
-	// 保留读取，供下方「右侧栏上移」等逻辑无关联使用的地方不再需要。
 
 	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条）。
 	// 实测真实类名 = AWEPlayInteractionDiversionBar，父视图 AWEBaseElementView、再上是 AWEElementStackView。
@@ -9710,8 +9696,6 @@ static NSHashTable *processedParentViews = nil;
 			}
 		}
 	}
-
-	[DYYYUtils applyRightColumnShiftIfNeeded:self];
 }
 
 %end
@@ -12645,25 +12629,40 @@ static Class TagViewClass = nil;
             }
         }
 
-        // 右侧元素的处理逻辑
+        // 右侧元素的处理逻辑（缩放 + 上移 —— **同一处、同一次写入**）
+        // 上移（DYYYElementShiftUp）过去是在「右半屏里逐个元素」写 transform（旧 AWEBaseElementView 三处入口），
+        // 判据全靠几何 → push 转场时左块元素会被伪装成右半屏元素（FORK.md 第十六节），于是又得配
+        // "右边缘越界 + 打标 + 自愈 + Comment 排除"一串补丁。这里收敛成一次写入：
+        //   · 右栏身份由结构决定（a11y "right" / 含头像视图 / 含头像元素），不再看坐标 → 转场骗不过；
+        //   · 位移写在容器自己的 transform 上，整栏一起走，不存在"一半元素抬了、一半没抬"；
+        //   · 每次布局都由这里重写（幂等）→ 不需要"写了再撤"的自愈机制。
+        // ⚠️ 有效位移 = shiftUp × scale：旧实现写在元素上，会被容器 0.8 的缩放再乘一次（设 10 → 实际 8pt），
+        //    这里显式乘 scale 保持逐像素一致。要改用户看到的位移量，请改设置值，别动这个乘数。
         if (isRightStack) {
             NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYElementScale"];
-            self.transform = CGAffineTransformIdentity;
+            const CGFloat shiftUp = DYYYGetFloat(@"DYYYElementShiftUp");
+            self.transform = CGAffineTransformIdentity;   // 先归零：下面读到的 frame/bounds 才是未变换的基准
+            CGFloat scale = 1.0;
             if (scaleValue.length > 0) {
-                CGFloat scale = [scaleValue floatValue];
-                if (scale > 0 && scale != 1.0) {
+                const CGFloat configuredScale = [scaleValue floatValue];
+                if (configuredScale > 0) {
+                    scale = configuredScale;
+                }
+            }
+            if (scale != 1.0 || shiftUp != 0.0) {
+                CGFloat ty = 0;
+                CGFloat right_tx = 0;
+                if (scale != 1.0) {
                     NSArray *subviews = [self.subviews copy];
-                    CGFloat ty = 0;
                     for (UIView *view in subviews) {
                         CGFloat viewHeight = view.frame.size.height;
                         ty += (viewHeight - viewHeight * scale) / 2;
                     }
                     CGFloat frameWidth = self.frame.size.width;
-                    CGFloat right_tx = (frameWidth - frameWidth * scale) / 2;
-                    self.transform = CGAffineTransformMake(scale, 0, 0, scale, right_tx, ty);
-                } else {
-                    self.transform = CGAffineTransformIdentity;
+                    right_tx = (frameWidth - frameWidth * scale) / 2;
                 }
+                ty -= shiftUp * scale;
+                self.transform = CGAffineTransformMake(scale, 0, 0, scale, right_tx, ty);
             }
         }
         // 左侧元素的处理逻辑
