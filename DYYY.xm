@@ -45,6 +45,8 @@ static const CGFloat kInvalidHeight = -1.0;
 static CGFloat gGlobalTransparency = kInvalidAlpha;
 static CGFloat gCurrentTabBarHeight = kInvalidHeight;
 static CGFloat originalTabBarHeight = kInvalidHeight;
+// 「次要文字」统一透明度：时间属地整行、进度时长（左/右）都挂这一档 —— 以后要统一调整只改这里。
+static const CGFloat kDYYYSecondaryTextAlpha = 0.6;
 static NSString *const kDYYYGlobalTransparencyKey = @"DYYYGlobalTransparency";
 static NSString *const kDYYYGlobalTransparencyDidChangeNotification = @"DYYYGlobalTransparencyDidChangeNotification";
 static char kDYYYGlobalTransparencyBaseAlphaKey;
@@ -775,6 +777,8 @@ static void DYYYHandleCurrentSpeedAwemeChanged(id aweme) {
         [leftLabel sizeToFit];
         leftLabel.frame = CGRectMake(CGRectGetMinX(sliderFrameInParent), labelYPosition, CGRectGetWidth(leftLabel.bounds), labelHeight);
         [DYYYUtils applyColorSettingsToLabel:leftLabel colorHexString:labelColorHex];
+        // 进度时长与「时间属地」同一档透明度；每次更新都写（幂等，防被重置回 1.0）
+        leftLabel.alpha = kDYYYSecondaryTextAlpha;
     } else {
         [leftLabel removeFromSuperview];
     }
@@ -810,6 +814,8 @@ static void DYYYHandleCurrentSpeedAwemeChanged(id aweme) {
         CGFloat rightLabelX = MAX(CGRectGetMaxX(sliderFrameInParent) - CGRectGetWidth(rightLabel.bounds), CGRectGetMinX(sliderFrameInParent));
         rightLabel.frame = CGRectMake(rightLabelX, labelYPosition, CGRectGetWidth(rightLabel.bounds), labelHeight);
         [DYYYUtils applyColorSettingsToLabel:rightLabel colorHexString:labelColorHex];
+        // 进度时长与「时间属地」同一档透明度；每次更新都写（幂等，防被重置回 1.0）
+        rightLabel.alpha = kDYYYSecondaryTextAlpha;
     } else {
         [rightLabel removeFromSuperview];
     }
@@ -3630,6 +3636,8 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
         [leftLabel sizeToFit];
         leftLabel.frame = CGRectMake(CGRectGetMinX(sliderFrameInParent), labelYPosition, CGRectGetWidth(leftLabel.bounds), labelHeight);
         [DYYYUtils applyColorSettingsToLabel:leftLabel colorHexString:labelColorHex];
+        // 进度时长与「时间属地」同一档透明度；每次更新都写（幂等，防被重置回 1.0）
+        leftLabel.alpha = kDYYYSecondaryTextAlpha;
     } else {
         [leftLabel removeFromSuperview];
     }
@@ -3665,6 +3673,8 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
         CGFloat rightLabelX = MAX(CGRectGetMaxX(sliderFrameInParent) - CGRectGetWidth(rightLabel.bounds), CGRectGetMinX(sliderFrameInParent));
         rightLabel.frame = CGRectMake(rightLabelX, labelYPosition, CGRectGetWidth(rightLabel.bounds), labelHeight);
         [DYYYUtils applyColorSettingsToLabel:rightLabel colorHexString:labelColorHex];
+        // 进度时长与「时间属地」同一档透明度；每次更新都写（幂等，防被重置回 1.0）
+        rightLabel.alpha = kDYYYSecondaryTextAlpha;
     } else {
         [rightLabel removeFromSuperview];
     }
@@ -3743,8 +3753,8 @@ static BOOL gDYYYDescBoldApplyingYY = NO;
         }
 
         [DYYYUtils applyColorSettingsToLabel:lbl colorHexString:labelColorHex];
-        // 时间属地整行默认 0.6 透明度（时间 + IP属地 是同一个标签，整行一起变淡）
-        lbl.alpha = 0.6;
+        // 时间属地整行走「次要文字」透明度（时间 + IP属地 是同一个标签，整行一起变淡）
+        lbl.alpha = kDYYYSecondaryTextAlpha;
     };
 
     if (cityCode.length == 0 && regionCode.length == 0) {

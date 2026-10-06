@@ -413,6 +413,23 @@ heal-撤销误写      win={  0.0,  17.0  50.0x84.0}   ← ★自愈命中，撤
 - 这类判据的**时机**比判据本身更危险：`setFrame:` / `didMoveToWindow` / `layoutSubviews` 在转场期间都会跑；
 - **一次性写入的 transform 没有撤销机制 = 症状永久化**：凡是我们"写上去就不再管"的几何值，都要配一套打标 + 自愈。
 
+## 十七、「次要文字」透明度统一（fork69）
+
+时间属地整行、进度时长（左/右）统一挂常量 `kDYYYSecondaryTextAlpha = 0.6`（`DYYY.xm` 顶部 statics 区）——
+以后要统一调这一档，只改常量一处即可。
+
+**⚠️ 改进度时长时注意：它有【两份实现】，改一份只生效一半场景**：
+
+| 实现 | 谁在用 |
+|---|---|
+| `%hook AWEFeedProgressSlider` 的 `dyyy_updateScheduleLabelsWithCurrentTime:totalDuration:` | 首页进度条 |
+| `UIView (DYYYProgressLabelLegacy)` 的 `dyyy_updateScheduleLabelsLegacyWithCurrentTime:totalDuration:model:` | `AWEPlayInteractionProgressController`、`AWEDProgressCoreContainer` |
+
+两份都是"在父视图上按 tag `10001`/`10002` 建/复用左右标签"，样式（字体 8、颜色取 `DYYYProgressLabelColor`、透明度取上面的常量）
+**每次更新都写一遍**（幂等，防被重置）。所以：改样式要**同时改两份**，否则换个页面就"没生效"。
+
+> 另外记一条叠加规则：若「进度时长颜色」本身带透明度，最终会再乘一次 0.6（时间属地同样规则，两边一致）。
+
 **验收结果：位置没有任何变化** —— 这符合预期，而且能用那份日志直接算清楚原因：
 
 `applyLiveCardScaleToStack:` 里是 `CGAffineTransformConcat(平移, 缩放)`，**平移先作用、随后整体被缩放**，
