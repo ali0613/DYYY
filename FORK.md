@@ -304,3 +304,42 @@ ssh root@<设备IP> 'mkdir -p $HOME/.ssh && chmod 700 $HOME/.ssh && cat /tmp/wsl
 （每层的类名 + frame + bounds）写进 `NSTemporaryDirectory()/dyyy-chain.txt`，再用 SSH 取回：
 `find /private/var/mobile/Containers/Data/Application -name dyyy-chain.txt`。
 
+## 十四、昵称文案缩放（首页左块）：判据长什么样 + 「无文案视频不生效」的根因（已修）
+
+**判据在哪**：`%hook AWEElementStackView -layoutSubviews` —— 先用 `AWEPlayInteractionViewController` 过滤，
+再把 stack 归类成左块/右块，只有归类成功才套 `DYYYNicknameScale` / `DYYYElementScale`。
+
+| 归类 | 判据（`||`，任一命中即可） | 依赖的内容 |
+|---|---|---|
+| 右块<br>`DYYYElementScale` | ① a11y 标签 == `"right"`<br>② 含 `AWEPlayInteractionUserAvatarView`<br>③ 子元素 `elementClassName == AWEPlayInteractionUserAvatarOptElementElement` | **头像 —— 每条视频都有** ✅ |
+| 左块<br>`DYYYNicknameScale` | ① a11y 标签 == `"left"`<br>② 含 `AWEFeedAnchorContainerView`<br>③ 子元素 `elementClassName` 含 `AWEPlayInteractionStandardAuthorElement`（fork65 新增）<br>④ 子元素 `elementClassName == AWEPlayInteractionDescriptionElement` | **作者信息（昵称就在里面）—— 一直有** ✅<br>（仅 ④ 时：文案 —— **可能没有** ❌） |
+
+**判据出处**（`git log -S` 可复现）：
+- 上游 `079d3734`：原本**只有 a11y 标签**；
+- huami `4755743`「修复新版本右侧文案缩放失效」：加了头像判据 ②③；
+- huami `3f540dd`「修复新版本描述文案缩放失效」：加了**文案元素**判据 ④ —— 坑就是从这里来的。
+
+**为什么无文案视频不生效**（2026-10 一次性诊断，`dyyy-left.txt` 共 37 个结构快照）：
+
+- 40.6.0 里这套 stack 的 a11y 标签**恒为空**（37 次采样 `a11yL=a11yR=0`、`anchor=0`，全 miss）→ 老判据 ①② 是死路；
+- 有文案左块 = `时间属地 + 文案 + 作者信息 + 弹幕`（4 个子元素）→ 命中 ④ ✓
+- **无文案左块 = `时间属地 + 作者信息`（只有 2 个子元素，文案与弹幕元素都不在）** → 判据全 miss
+  → `isLeftStack` 恒 NO → `if (isRightStack) {} else if (isLeftStack) {}` **两个分支都不进**
+  → 整段缩放逻辑一行都不执行（连 transform 重置都没有）。
+- 右块从来没有这个毛病，因为它的判据是**头像**（与内容无关）——**左右判据不对称才是根因**。
+
+**修法（fork65）**：左块判据补 ③ `containsString:@"StandardAuthorElement"`（昵称就在该元素内部，与视频内容无关）；
+用 `containsString` 而不是等号，因为抖音同类元素名有带后缀的变体（如 `...UserAvatarOptElementElement`），
+等号匹配一旦改名就**静默失效**。同时删掉同类的 `-arrangedSubviews` hook（判据只有 a11y+锚点，实测恒 miss = 纯死代码，
+而且和 `layoutSubviews` 里的判据重复，容易两处打架）。
+
+**刻意没做**：加"未识别就重置 identity"的兜底 —— 底部栏/合集那些 stack（`a11y=「bottom」`、`AWEPlayInteractionNewMixVideoInfoElement`）
+本来就不该被我们写 transform，盲重置可能和抖音自身的变换打架。若日后出现"缩放在复用的 stack 上残留"，
+再改成**只重置自己缩过的 stack**（associated object 打标）。
+
+**可复用的诊断手法**：在这个 hook 里按「结构签名 = stack 指针 + 子视图数 + 关键元素有无」去重，
+把每个 stack 的 a11y 标签、四条判据命中情况、每个子元素的类名 / `elementClassName` / frame / hidden / 文本
+写进 `NSTemporaryDirectory()/dyyy-left.txt`（每进程首次写入用 `"w"` 清空）。
+**关键点：有文案 / 无文案各打开一次**，两份一对比缺哪个元素一目了然。
+⚠️ 诊断块要放在"判据算完、应用之前"，此时 `transform.a` 还是上一轮的值 —— 看到 1.000 **不代表**没生效。
+

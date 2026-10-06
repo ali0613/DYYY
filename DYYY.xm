@@ -12634,6 +12634,15 @@ static Class TagViewClass = nil;
             }
         }
 
+        // 左块判据（「无文案视频不生效」的坑就在这里）：
+        //   ① a11y 标签 "left" / 锚点容器 —— 老版本有效；40.6.0 实测恒不命中（37 次采样 a11yL/anchor 全为 0），保留兼容。
+        //   ② 子元素里有「作者信息元素」AWEPlayInteractionStandardAuthorElement —— 昵称就在它内部，
+        //      与视频内容无关，无文案视频也一定在（实测：无文案左块 = 时间属地 + 作者信息，共 2 个子元素）。
+        //   ③ 子元素里有「文案元素」AWEPlayInteractionDescriptionElement —— 只有「有文案」的视频才有。
+        //   ⚠️ 之前只有 ③：无文案视频左块里既没有文案元素、也没有弹幕元素，三条判据全落空 →
+        //      isLeftStack = NO → 整段缩放逻辑一行都不执行 = 昵称文案缩放不生效。
+        //   用 containsString 而不是等号：抖音同类元素名有带后缀的变体
+        //   （如 AWEPlayInteractionUserAvatarOptElementElement），等号匹配一旦改名就静默失效。
         BOOL isLeftStack = ([label isEqualToString:@"left"] || hasAnchor);
         if (!isLeftStack) {
             NSArray *subviews = [self.subviews copy];
@@ -12641,7 +12650,8 @@ static Class TagViewClass = nil;
                 UIView *sub = subviews[i];
                 if ([sub respondsToSelector:@selector(elementClassName)]) {
                     NSString *elementClassName = [sub performSelector:@selector(elementClassName)];
-                    if ([elementClassName isEqualToString:@"AWEPlayInteractionDescriptionElement"]) {
+                    if ([elementClassName containsString:@"StandardAuthorElement"] ||
+                        [elementClassName isEqualToString:@"AWEPlayInteractionDescriptionElement"]) {
                         isLeftStack = YES;
                         break;
                     }
@@ -12692,37 +12702,6 @@ static Class TagViewClass = nil;
             }
         }
     }
-}
-
-- (NSArray<__kindof UIView *> *)arrangedSubviews {
-
-    UIViewController *viewController = [DYYYUtils firstAvailableViewControllerFromView:self];
-    if ([viewController isKindOfClass:%c(AWEPlayInteractionViewController)]) {
-
-        if ([self.accessibilityLabel isEqualToString:@"left"] || [DYYYUtils containsSubviewOfClass:NSClassFromString(@"AWEFeedAnchorContainerView") inContainer:self]) {
-            NSString *scaleValue = [[NSUserDefaults standardUserDefaults] objectForKey:@"DYYYNicknameScale"];
-            if (scaleValue.length > 0) {
-                CGFloat scale = [scaleValue floatValue];
-                self.transform = CGAffineTransformIdentity;
-                if (scale > 0 && scale != 1.0) {
-                    NSArray *subviews = [self.subviews copy];
-                    CGFloat ty = 0;
-                    for (UIView *view in subviews) {
-                        CGFloat viewHeight = view.frame.size.height;
-                        ty += (viewHeight - viewHeight * scale) / 2;
-                    }
-                    CGFloat frameWidth = self.frame.size.width;
-                    CGFloat left_tx = (frameWidth - frameWidth * scale) / 2 - frameWidth * (1 - scale);
-                    CGAffineTransform newTransform = CGAffineTransformMakeScale(scale, scale);
-                    newTransform = CGAffineTransformTranslate(newTransform, left_tx / scale, ty / scale);
-                    self.transform = newTransform;
-                }
-            }
-        }
-    }
-
-    NSArray *originalSubviews = %orig;
-    return originalSubviews;
 }
 
 %end
