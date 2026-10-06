@@ -4239,31 +4239,6 @@ static NSString *const kDYYYLongPressCopyEnabledKey = @"DYYYLongPressCopyTextEna
         CGAffineTransform translationTransform = CGAffineTransformMakeTranslation(translationX, verticalOffset);
         grandParentView.transform = translationTransform;
     }
-
-    // ⚠️ 临时诊断：记录层级与那句判断的结果（限 200 行），写到 tmp/dyyy-user.txt
-    {
-        static NSInteger dyDbgCount = 0;
-        if (dyDbgCount < 200) {
-            dyDbgCount++;
-            UIView *dyB0 = self.superview;
-            UIView *dyB1 = dyB0.superview;
-            UIView *dyB2 = dyB1.superview;
-            NSString *dyBLine = [NSString stringWithFormat:@"self=%@ | p0=%@ | p1=%@ | p2=%@ | 判断=%@ | p1.transform=%@ | p1.frame=%@\n",
-                NSStringFromClass([self class]),
-                NSStringFromClass([dyB0 class]),
-                NSStringFromClass([dyB1 class]),
-                NSStringFromClass([dyB2 class]),
-                (dyB1 && [dyB2 isKindOfClass:%c(AWEBaseElementView)]) ? @"通过" : @"不通过",
-                NSStringFromCGAffineTransform(dyB1.transform),
-                NSStringFromCGRect(dyB1.frame)];
-            NSString *dyBPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"dyyy-user.txt"];
-            FILE *dyBFile = fopen(dyBPath.UTF8String, "a");
-            if (dyBFile) {
-                fputs(dyBLine.UTF8String, dyBFile);
-                fclose(dyBFile);
-            }
-        }
-    }
 }
 
 %end
@@ -6100,17 +6075,24 @@ static void DYYYApplyAvatarFollowPromptSettingsWithRetry(id owner) {
 
 // 隐藏评论区免费去看短剧
 %hook AWEShowPlayletCommentHeaderView
+
+// 接管 setter（同第十八节汽水条的教训）：抖音会把它显示回来，只在 layoutSubviews 里写一次会随机漏
+- (void)setHidden:(BOOL)hidden {
+    %orig(DYYYGetBool(@"DYYYHideCommentViews") ? YES : hidden);
+}
+
 - (void)layoutSubviews {
     %orig;
     if (DYYYGetBool(@"DYYYHideCommentViews")) {
         self.hidden = YES;
+        [DYYYUtils collapseRowIfEmpty:self];   // 藏了内容还得把行高交出来，否则顶栏留一条空白
         return;
     }
 }
 
 %end
 
-// 隐藏评论区定位
+// 隐藏评论区定位（评论区顶栏那张「XX市 · N万人打卡」卡片）
 %hook AWEPOIEntryAnchorView
 
 - (void)p_addViews {
@@ -6120,15 +6102,42 @@ static void DYYYApplyAvatarFollowPromptSettingsWithRetry(id owner) {
     %orig;
 }
 
+- (void)setHidden:(BOOL)hidden {
+    %orig(DYYYGetBool(@"DYYYHideCommentViews") ? YES : hidden);
+}
+
+- (void)layoutSubviews {
+    %orig;
+    if (DYYYGetBool(@"DYYYHideCommentViews")) {
+        self.hidden = YES;
+        // ⚠️ 我们拦掉了 p_addViews（不建内容），但**视图对象还在**、它那一行的高度也还在 → 必须一起塌
+        [DYYYUtils collapseRowIfEmpty:self];
+    }
+}
+
+- (void)didMoveToWindow {
+    %orig;
+    if (DYYYGetBool(@"DYYYHideCommentViews")) {
+        self.hidden = YES;
+        [DYYYUtils collapseRowIfEmpty:self];
+    }
+}
+
 %end
 
 // 隐藏评论音乐
 %hook AWECommentGuideLunaAnchorView
+
+- (void)setHidden:(BOOL)hidden {
+    %orig(DYYYGetBool(@"DYYYHideCommentViews") ? YES : hidden);
+}
+
 - (void)layoutSubviews {
     %orig;
 
     if (DYYYGetBool(@"DYYYHideCommentViews")) {
         [self setHidden:YES];
+        [DYYYUtils collapseRowIfEmpty:self];
     }
 
     if (DYYYGetBool(@"DYYYMusicCopyText")) {
@@ -6166,35 +6175,55 @@ static void DYYYApplyAvatarFollowPromptSettingsWithRetry(id owner) {
 %end
 
 // Swift 类组
+// ⚠️ 这三类是评论区面板头部的三种形态，隐藏时要一起"塌行"（collapseRowIfEmpty:）——
+//    只 setHidden 的话那一行的高度还在，顶栏会留一条空白带（= 用户实测到的现象）。
 %group CommentHeaderGeneralGroup
 %hook AWECommentPanelHeaderSwiftImpl_CommentHeaderGeneralView
+
+- (void)setHidden:(BOOL)hidden {
+    %orig(DYYYGetBool(@"DYYYHideCommentViews") ? YES : hidden);
+}
+
 - (void)layoutSubviews {
     %orig;
 
     if (DYYYGetBool(@"DYYYHideCommentViews")) {
         [self setHidden:YES];
+        [DYYYUtils collapseRowIfEmpty:self];
     }
 }
 %end
 %end
 %group CommentHeaderGoodsGroup
 %hook AWECommentPanelHeaderSwiftImpl_CommentHeaderGoodsView
+
+- (void)setHidden:(BOOL)hidden {
+    %orig(DYYYGetBool(@"DYYYHideCommentViews") ? YES : hidden);
+}
+
 - (void)layoutSubviews {
     %orig;
 
     if (DYYYGetBool(@"DYYYHideCommentViews")) {
         [self setHidden:YES];
+        [DYYYUtils collapseRowIfEmpty:self];
     }
 }
 %end
 %end
 %group CommentHeaderTemplateGroup
 %hook AWECommentPanelHeaderSwiftImpl_CommentHeaderTemplateAnchorView
+
+- (void)setHidden:(BOOL)hidden {
+    %orig(DYYYGetBool(@"DYYYHideCommentViews") ? YES : hidden);
+}
+
 - (void)layoutSubviews {
     %orig;
 
     if (DYYYGetBool(@"DYYYHideCommentViews")) {
         [self setHidden:YES];
+        [DYYYUtils collapseRowIfEmpty:self];
     }
 }
 %end
@@ -6208,6 +6237,56 @@ static void DYYYApplyAvatarFollowPromptSettingsWithRetry(id owner) {
     }
 }
 %end
+%end
+
+// 【diag8】评论区头部那一格（CommentPanelHeaderNewCell）：它是 UICollectionViewCell，
+// 那 61pt 是**布局**分配的格子高度，藏内容/藏自己都不会变矮（实测 walkthrough 见 FORK.md 第二十节）。
+// 这里从"自适应高度"这条官方路径下手：让 cell 自己报 0 高 → section 0 高度变 0 →
+// 下面的段选择器（评论/AI 解析）与评论列表由布局自动整体上移，我们不需要挪任何视图。
+%group CommentPanelHeaderCellGroup
+%hook AWECommentPanelHeaderSwiftImpl_CommentPanelHeaderNewCell
+
+- (void)setHidden:(BOOL)hidden {
+    %orig(DYYYGetBool(@"DYYYHideCommentViews") ? YES : hidden);
+}
+
+%end
+%end
+
+// 【diag9】★关键一刀：这一段 61pt 是 **IGListKit 的 section controller** 算出来的
+// （实测 collectionView.dataSource/delegate = IGListAdapter；cell 侧"约束置 0 + 自适应报 0"两条路都打通了，
+//   systemLayoutSizeFitting 已是 0，但布局只认 section controller 的 sizeForItem → 仍是 61）。
+// 这里把该项高度压成 0：section 0 高度变 0 后，下面的段选择器（评论/AI 解析）与评论列表由布局自动上移。
+%group CommentPanelHeaderSectionGroup
+%hook AWECommentPanelHeaderSwiftImpl_CommentPanelHeaderSectionController
+
+- (CGSize)sizeForItemAtIndex:(NSInteger)index {
+    CGSize size = %orig;
+    if (DYYYGetBool(@"DYYYHideCommentViews")) {
+        // ⚠️ 这里**不能**返回 0：实测 0 高会让评论列表整块不渲染（AWETabContainerSectionCell 压根不被创建），
+        //    而 0.5pt 既能留着"这是一项"的语义（布局照常算、列表正常），屏幕上又看不见。
+        //    0.5pt 会留下一条发丝线（该 section 的底色视图）→ 由 AWEBaseListSectionBackgroundView 那条钩子隐藏。
+        size.height = 0.5;
+    }
+    return size;
+}
+
+%end
+%end
+
+// 收尾：section 0 被压成 0.5pt 后，它的「section 底色视图」也只剩 0.5pt 却仍在画底色 → 屏幕上就是一条细横线。
+// 判据取"高度 < 1pt"，只可能是这种被压扁的底色块，屏幕上本来也看不见，隐藏它不影响任何可见内容。
+%hook AWEBaseListSectionBackgroundView
+
+- (void)layoutSubviews {
+    %orig;
+    if (DYYYGetBool(@"DYYYHideCommentViews") && self.frame.size.height < 1.0) {
+        if (!self.hidden) {
+            self.hidden = YES;
+        }
+    }
+}
+
 %end
 
 // 去除隐藏大家都在搜后的留白
@@ -11566,6 +11645,11 @@ static Class tabBarButtonClass = nil;
 - (void)viewDidLayoutSubviews {
     %orig;
 
+    // 「隐藏评论视图」收尾：抖音那条"列表顶部分隔线"是普通 UIView，位置按它假设的头部高度算，
+    // 头部被压掉后它会孤零零留在评论列表中间 → 每次布局后按下去（位置是抖音每次算的，只写一次会被搬回去）。
+    // ⚠️ 必须放在下面那个提前 return 之前：否则「评论区毛玻璃」关着时这段就不执行了。
+    [DYYYUtils hideCommentPanelHairlinesInView:self.view];
+
     if (!DYYYGetBool(@"DYYYEnableCommentBlur"))
         return;
 
@@ -13558,6 +13642,16 @@ static void findTargetViewInView(UIView *view) {
         Class tipsVCClass = objc_getClass("AWECommentPanelListSwiftImpl.CommentBottomTipsContainerViewController");
         if (tipsVCClass) {
             %init(CommentBottomTipsVCGroup, AWECommentPanelListSwiftImpl_CommentBottomTipsContainerViewController = tipsVCClass);
+        }
+
+        Class panelHeaderCellClass = objc_getClass("AWECommentPanelHeaderSwiftImpl.CommentPanelHeaderNewCell");
+        if (panelHeaderCellClass) {
+            %init(CommentPanelHeaderCellGroup, AWECommentPanelHeaderSwiftImpl_CommentPanelHeaderNewCell = panelHeaderCellClass);
+        }
+
+        Class panelHeaderSectionClass = objc_getClass("AWECommentPanelHeaderSwiftImpl.CommentPanelHeaderSectionController");
+        if (panelHeaderSectionClass) {
+            %init(CommentPanelHeaderSectionGroup, AWECommentPanelHeaderSwiftImpl_CommentPanelHeaderSectionController = panelHeaderSectionClass);
         }
 
         NSNotificationCenter *center = [NSNotificationCenter defaultCenter];

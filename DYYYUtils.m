@@ -2495,6 +2495,84 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
     }
 }
 
+// diag7 用：把"绝对高度约束"（没有 secondItem 的那种，即 view.height == 常量）置 0。
+// 只碰这种，避免动到"和子视图关联"的约束（row.height == child.height + 8 之类）。
+// 返回是否真的改动过。
+static BOOL DYYYZeroAbsoluteHeightConstraints(UIView *view) {
+    if (!view) {
+        return NO;
+    }
+    BOOL changed = NO;
+    NSArray<NSLayoutConstraint *> *pools[2] = { view.constraints, view.superview.constraints };
+    for (int index = 0; index < 2; index++) {
+        for (NSLayoutConstraint *constraint in pools[index]) {
+            if (constraint.firstItem != view || constraint.secondItem != nil) {
+                continue;
+            }
+            if (constraint.firstAttribute != NSLayoutAttributeHeight) {
+                continue;
+            }
+            if (constraint.constant != 0.0) {
+                constraint.constant = 0.0;
+                changed = YES;
+            }
+        }
+    }
+    return changed;
+}
+
++ (void)collapseRowIfEmpty:(UIView *)child {
+    if (!child) {
+        return;
+    }
+    UIView *row = child.superview;
+    if (!row || !row.window) {
+        return;
+    }
+    // 条件②：只处理屏幕上半部分的"行"（评论区顶栏就在这一带）——
+    // 避免把底部列表容器这类大块当成"空行"藏掉。
+    const CGRect rowFrameInWindow = [row convertRect:row.bounds toView:nil];
+    if (CGRectGetMinY(rowFrameInWindow) >= [UIScreen mainScreen].bounds.size.height * 0.5) {
+        return;
+    }
+    // 条件①：这一行里只要还有别的"看得见"的内容，就绝不动父视图。
+    for (UIView *sibling in row.subviews) {
+        if (sibling == child) {
+            continue;
+        }
+        if (sibling.hidden || sibling.alpha <= 0.01) {
+            continue;
+        }
+        return;
+    }
+    BOOL changed = NO;
+    if (!row.hidden) {
+        row.hidden = YES;   // 隐藏的"行"在 stack 里才会塌 → 高度真正交出来
+        changed = YES;
+    }
+    // ★diag7：光藏内容不够 —— 实测留白是 `CommentPanelHeaderNewCell`（UICollectionViewCell）那 61pt：
+    //   内容是内容撑的，格子高是布局给的，所以还要把"空行/承载它的格子"自己的绝对高度约束也置 0，
+    //   再触发一次布局重算（只在第一次真改动时触发，否则每次布局都 invalidate 会自己打转）。
+    if (DYYYZeroAbsoluteHeightConstraints(row)) {
+        changed = YES;
+    }
+    UIView *container = row.superview;
+    if ([container isKindOfClass:[UICollectionViewCell class]]) {
+        if (DYYYZeroAbsoluteHeightConstraints(container)) {
+            changed = YES;
+        }
+        static char kDYYYCollapseInvalidatedKey;
+        if (changed && ![objc_getAssociatedObject(container, &kDYYYCollapseInvalidatedKey) boolValue]) {
+            objc_setAssociatedObject(container, &kDYYYCollapseInvalidatedKey, @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            UIView *maybeCollectionView = container.superview;
+            if ([maybeCollectionView isKindOfClass:[UICollectionView class]]) {
+                UICollectionViewLayout *layout = ((UICollectionView *)maybeCollectionView).collectionViewLayout;
+                [layout invalidateLayout];
+            }
+        }
+    }
+}
+
 
 + (void)applyBoldFontRecursivelyInView:(UIView *)root {
     if (!root) {
@@ -2552,6 +2630,37 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
 
         for (UIView *sub in v.subviews) {
             [stack addObject:sub];
+        }
+    }
+}
+
++ (void)hideCommentPanelHairlinesInView:(UIView *)root {
+    if (!root || !DYYYGetBool(@"DYYYHideCommentViews")) {
+        return;
+    }
+    const CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+    const CGFloat upperLimit = [UIScreen mainScreen].bounds.size.height * 0.55;
+    NSMutableArray<UIView *> *queue = [NSMutableArray arrayWithObject:root];
+    int guard = 0;
+    while (queue.count > 0 && guard++ < 400) {
+        UIView *view = queue.firstObject;
+        [queue removeObjectAtIndex:0];
+        for (UIView *sub in view.subviews) {
+            const CGRect frameInWindow = [sub convertRect:sub.bounds toView:nil];
+            if (frameInWindow.size.height > 0.0 && frameInWindow.size.height <= 1.0 &&
+                frameInWindow.size.width >= screenWidth * 0.6 &&
+                CGRectGetMinY(frameInWindow) < upperLimit) {
+                UIColor *background = sub.backgroundColor;
+                if (background && ![background isEqual:[UIColor clearColor]]) {
+                    const CGFloat alpha = CGColorGetAlpha(background.CGColor);
+                    if (alpha > 0.01 && alpha < 0.9 && !sub.hidden) {
+                        sub.hidden = YES;   // 抖音那条"列表顶部分隔线"，头部压掉后它成了孤儿
+                    }
+                }
+            }
+            if (sub.subviews.count > 0) {
+                [queue addObject:sub];
+            }
         }
     }
 }

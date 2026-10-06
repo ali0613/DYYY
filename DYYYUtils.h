@@ -344,7 +344,26 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (void)hideDiversionBarRowIfNeeded:(UIView *)bar;
 
+/**
+ * 通用「塌行」：让"已经空掉的那一行"把高度也交出来（评论区顶栏留白用）。
+ * 背景：隐藏子视图**不会**让它那一行的高度消失 —— 只有被隐藏的**行**才会在 stack 里塌掉，
+ * 所以藏了内容往往留下一条空白带（汽水推广条是同一个病，见 FORK.md 第十八节 / 第二十节）。
+ * 保守条件（两条都不满足就绝不动作，避免误伤评论列表、标签栏这类大容器）：
+ *   ① 这一行里除 child 之外没有别的可见内容；
+ *   ② 这一行整体落在屏幕上半部分（评论区顶栏就在这一带）。
+ */
++ (void)collapseRowIfEmpty:(UIView *)child;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
+
+/**
+ * 「隐藏评论视图」收尾：把评论面板里"孤立的分隔线"藏掉。
+ * 背景：抖音自己那条列表顶部分隔线是普通 UIView（不在 collection view 里），位置按它假设的头部高度算；
+ * 我们把头部压掉后列表跟着上移，这条线却留在原地 → 穿在评论列表中间（实测 y≈384~397、高 0.5pt、底色 12% 不透明度）。
+ * 判据很紧：高度 ≤1pt、宽度 ≥ 屏宽 60%、位于面板上半部分、带半透明底色 —— 只可能是这种发丝线。
+ * ⚠️ 由面板的 viewDidLayoutSubviews 每次调用（位置是抖音每次布局算的，只写一次会被它搬回去）。
+ */
++ (void)hideCommentPanelHairlinesInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;
 

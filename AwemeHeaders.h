@@ -887,6 +887,12 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 - (void)layoutSubviews;
 @end
 
+// 列表每个 section 的"底色视图"（AWEBaseListKit）。
+// 评论区顶栏那段被我们压成 0.5pt 后，它的底色还剩 0.5pt 在画 → 屏幕上是一条细横线，靠它隐藏。
+@interface AWEBaseListSectionBackgroundView : UIView
+- (void)layoutSubviews;
+@end
+
 @interface AWEFeedTopBarContainer : UIView
 @end
 

@@ -557,4 +557,76 @@ if (isRightStack) {
   写在容器上 → 整栏一起动、可幂等重写、不需要撤销机制；
 - **一次性写入的几何值 = 迟早要配自愈机制**（§16 的 `transform`、§18 的 `hidden` 都是同一类病）。
 
+## 二十、「隐藏评论视图」藏了内容却留一条空白带：高度是 IGListKit 的 section 给的（fork72 修）
+
+**现象**：打开「隐藏评论视图」后，评论区顶栏的内容（定位卡「XX市 · N万人打卡」等）确实没了，
+但**顶部留一条约 61pt 的空白带** —— 位置在 ⤢/✕ 按钮行与「评论 903 ｜ AI 解析」之间。
+
+**排查过程（五轮探针，每轮只加"下一个未知量"的采集，全部只读、不动视图）**：
+
+| 轮次 | 探针看到的关键事实 | 结论 |
+|---|---|---|
+| diag6 | 我们 hook 的 `CommentHeaderTemplateAnchorView` 已 `hidden=1`，它的父"行"也 `hidden=1`，但 `CommentPanelHeaderNewCell`（UICollectionViewCell）仍是 `win={0, 296.3 428x61} hidden=0` | 留白 = **格子的高度**，不是内容 |
+| diag7 | cell 内那一行有 `UIView.8 == nil.0 +61.0`（绝对高度约束）；把它置 0 后 dump 里**仍是 61** | 约束被 Swift 侧每次布局重写 → 从外面改等于对着干 |
+| diag8 | `preferredLayoutAttributesFittingAttributes:` **确实被调用**（说明 cell 是自适应型）；我们改 0 后 `systemLayoutSizeFitting` 已经是 `0x0`，但 `attrs[s0,i0]` 仍是 61；`dataSource=IGListAdapter`；类名单里出现 `…CommentPanelHeaderSectionController` | 高度由 **IGListKit 的 section controller** 决定，cell 的意愿不算数 |
+| diag9 | hook `sizeForItemAtIndex:` 返回 **0** → 留白消失 ✓，但**评论列表整块不渲染**（主 collection view 子视图 5→3，`AWETabContainerSectionCell` 压根没被创建） | **0 高 = "这一项是空的"**，会被框架静默丢掉 |
+| diag10 | 改成 **0.5pt** → 列表回来、留白消失；`子 AWEBaseListSectionBackgroundView win={0, 296.3 428x0.5} hidden=0` | 剩下的**细横线 = 该 section 的"底色视图"** |
+
+**最终修法（fork72）**：
+
+```objc
+// ① 谁算尺寸就改谁：IGListKit 的 section controller
+%hook AWECommentPanelHeaderSwiftImpl_CommentPanelHeaderSectionController
+- (CGSize)sizeForItemAtIndex:(NSInteger)index {
+    CGSize size = %orig;
+    if (DYYY开关) { size.height = 0.5; }   // ⚠️ 不能是 0（0 会让评论列表整块不渲染）
+    return size;
+}
+%end
+
+// ② 压扁后随它一起缩的"装饰视图"要一起处理：section 底色只剩 0.5pt 却还在画 → 一条细横线
+%hook AWEBaseListSectionBackgroundView
+- (void)layoutSubviews {
+    %orig;
+    if (DYYY开关 && self.frame.size.height < 1.0) { self.hidden = YES; }
+}
+%end
+
+// ③ 还有一条"孤儿分隔线"：抖音自己的列表顶部分隔线是普通 UIView（不在 collection view 里），
+//    位置按它假设的头部高度算 —— 头部压掉后它留在原地，穿在评论列表中间。
+//    它每次布局都会被抖音重新摆回去 → 由面板的 viewDidLayoutSubviews 每趟按下去。
+%hook AWECommentContainerViewController
+- (void)viewDidLayoutSubviews {
+    %orig;
+    [DYYYUtils hideCommentPanelHairlinesInView:self.view];   // 高≤1pt + 宽≥屏宽60% + 上半屏 + 半透明底色
+    ...
+}
+%end
+```
+
+> **diag11 的取证**（改前先量）：`thin UIView win={0, 383.8 428.0x0.50} bgAlpha=0.12 parent=UIView`
+> —— 普通 UIView、0.5pt 高、12% 不透明度的填充、父视图也是普通 UIView（不在 collection view 里）
+> ⇒ 与抖音的布局体系无关的一条**独立分隔线**，只能靠"每次布局后按下去"解决。
+
+保留（有用）：`DYYYUtils collapseRowIfEmpty:`（藏掉"已空掉的那一行"+ 置 0 绝对高度约束）、
+`CommentHeader*` / `AWEPOIEntryAnchorView` / `AWECommentGuideLunaAnchorView` / `AWEShowPlayletCommentHeaderView` 的 `setHidden:` 接管、
+`hideCommentPanelHairlinesInView:`。
+删除（实验/残留）：`preferredLayoutAttributesFittingAttributes:` 钩子、`dyyy_dumpCommentTopAreaToFile:` /
+`dyyy_appendDiagLine:` / `dyyy_dumpThinLinesToFile:` 及全部探针，
+外加**一处历史残留探针**（`AWEFeedVideoButton` 里往 `tmp/dyyy-user.txt` 写 200 行的那段 —— 每次启动都写，属于该清的垃圾）。
+
+**可复用教训**：
+
+- 列表项的**高度有三个可能的主人**：① 内容约束（cell 自适应）② cell 的自适应接口 ③ **列表框架的 section 尺寸**。
+  前两个"看起来生效了"（`systemLayoutSizeFitting` 都 0 了）**也不代表布局会变** ——
+  **先确认是谁算的尺寸，再动手**：`collectionView.dataSource` 的类名（这里是 `IGListAdapter`）+ 类名单里带 `SectionController` 的那个，就是答案；
+- **"0" 是危险值**：0 高/0 尺寸常被框架理解成"这一项不存在"而静默丢弃（评论列表整块消失）。
+  留 `0.5pt` 这种"**非零但不可见**"的值，语义与视觉两头都保住；
+- **压高度时要顺带想到随它一起缩的装饰视图**（section 底色、分隔线）：主体藏了，"发丝线"还在；
+- 探针**分轮递进**比一次全量 dump 更快锁定真身：这轮 5 次出包，每次都在缩小包围圈；
+- **"身首分离"要多想一层**：我们把"头部"的高度拿掉时，**不在同一套布局体系里**的元素（这里是抖音自己画的
+  分隔线，靠它自己对头部高度的假设定位）不会跟着走，会变成"孤儿"留在画面里 ——
+  这类元素没法一次性解决，只能**在每次布局后按下去**（`viewDidLayoutSubviews` + 紧判据）。
+
+
 
