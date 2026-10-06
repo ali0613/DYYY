@@ -343,3 +343,36 @@ ssh root@<设备IP> 'mkdir -p $HOME/.ssh && chmod 700 $HOME/.ssh && cat /tmp/wsl
 **关键点：有文案 / 无文案各打开一次**，两份一对比缺哪个元素一目了然。
 ⚠️ 诊断块要放在"判据算完、应用之前"，此时 `transform.a` 还是上一轮的值 —— 看到 1.000 **不代表**没生效。
 
+## 十五、硬编码 `-20` 与「预直播页」分支：实测判定并拆除（fork66）
+
+**背景**：`%hook IESLiveStackView -layoutSubviews` 里有一段以 `AWELiveNewPreStreamViewController` 为条件的处理，
+它**先**算 `currentScale / tx / ty`（含全屏化的 `ty -= gCurrentTabBarHeight`），**再**把结果整个覆盖成
+`translation(0, -20)` —— 算出来的值一个都没用上。
+
+**判定手法**：临时探针（三站点，写 `tmp/dyyy-pre.txt`，按 site+类名去重）。实测两行：
+
+```
+A:IESLiveStackView.layoutSubviews  vc=<AWELiveNewPreStreamViewController> 预直播类=命中
+   bounds={{0,0},{404,926}}  transform=[1, 0, 0, 1, 0, 0]
+B1:预直播分支(IESLiveStackView)     vc=<AWELiveNewPreStreamViewController> 预直播类=命中
+   bounds={{0,0},{404,926}}  transform=[0.80000001, 0, 0, 0.80000001, -32.319998, -74.079997]
+```
+
+**四条结论**：
+
+1. **这段不是死代码，它真的在跑**（A / B1 双命中），`AWELiveNewPreStreamViewController` 这个类在当前版本存在。
+2. **影响面就是首页那张直播卡片**：`404 = 428 − 左右各 12pt`（卡片宽度，整页是 428）——
+   即**首页信息流的直播卡片是被 `AWELiveNewPreStreamViewController` 承载的**，不是"某个没去过的页面"。
+3. **旧的注释「本类 layoutSubviews / didMoveToWindow 都不触发」是错的**（A 实测命中）。这条错误前提以前影响过判断，
+   已在两处 `setAlpha:` 注释里就地改正。
+4. **"我们写好 → 它抹掉"是真实发生的**：B1 进入时 transform 已是缩放值，紧接着被覆盖成 `(0,-20)`；
+   每趟布局一次 → 谁最后写谁生效，这就是历史症状「划过去划回来会看到缩放过程」「位置还是有问题」的机制。
+
+**顺带证据**：B1 那个 transform 的 `tx/ty` 是用 **0.8 倍的尺寸**（323.2 × 740.8）算出来的
+（`(323.2−258.56)/−2 = −32.32`、`(740.8−592.64)/−2 = −74.08`），正是第十节记的
+「transform 参与布局 → 比例被反复叠加」的现场实例。
+
+**处理（fork66）**：**删掉这段分支**（连同探针与 `-20` 写入）。位移只保留
+`applyLiveCardScaleToStack:`（`shiftUp` 参数）**一处来源**。
+⚠️ 以后这张卡片整体偏高/偏低，只改 `shiftUp` 那一处，**不要**再往 hook 里加 transform 写入。
+

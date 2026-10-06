@@ -12423,8 +12423,9 @@ static Class TagViewClass = nil;
 %hook AWEElementStackView
 
 - (void)setAlpha:(CGFloat)alpha {
-    // 直播卡片缩放：实测 layoutSubviews / didMoveToWindow 在该视图上都不触发，
-    // 而本方法（全局透明度）确实在执行（FLEX 里 alpha 0.9 就是证据）—— 借用这个必然触发的入口。
+    // 直播卡片缩放：入口不止一个 —— layoutSubviews 实测**会**触发（2026-10 探针 A 实证），didMoveToWindow 也会；
+    // 但抖音在 cell 复用/重配置时会把 transform 写回去，所以每个入口都要兜（谁最后写谁生效），
+    // 本方法（全局透明度必被调用，FLEX 里 alpha 0.9 就是证据）是其中最可靠的一个。
     if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
         [DYYYUtils applyLiveCardScaleToStack:self];
     }
@@ -12555,12 +12556,11 @@ static Class TagViewClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    // 首页直播卡片（信息流里的「直播中」卡片）整块缩放。
-    // 缩放作用在每一行（arrangedSubviews）而不是 stack 自身 ——
-    // 因为本类里抖音/上游自己会写 self.transform（预览页那段逻辑），会把 stack 自身的变换覆盖掉；
-    // 行视图是普通视图，用 layer.transform 既不会改变 frame（UIStackView 布局无感知、不会反复叠加），
-    // 也不会被覆盖。每行各自把左边缘钉住，视觉上就是整块一起缩。
-    // 直播卡片（信息流里的「直播中」卡片）中「徽标 + 昵称 + 文案」的整块缩放。
+    // 首页直播卡片（信息流里的「直播中」卡片）中「徽标 + 昵称 + 文案」整块缩放。
+    // 实测收敛为：只对「最内层那个 stack」（直接子视图里含高度 ≤40 的 IESLiveLayoutContainerView 行）
+    // 写 self.transform，外层几个 stack 由 applyLiveCardScaleToStack: 自动排除；变换基准在首次见到时缓存，
+    // 之后都在这份基准上叠加（避免反复缩放）。入口有多个（layoutSubviews / setAlpha: / didMoveToWindow /
+    // 行容器 layoutSubviews），抖音复用时会把 transform 写回去 → 谁最后写谁生效，所以每个入口都要兜。
     // 具体判别与计算见 DYYYUtils applyLiveCardScaleToStack:（只处理目标 stack，其它恢复原状）。
     if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
         [DYYYUtils applyLiveCardScaleToStack:self];
@@ -12715,8 +12715,9 @@ static Class TagViewClass = nil;
 }
 
 - (void)setAlpha:(CGFloat)alpha {
-    // 直播卡片缩放：实测 layoutSubviews / didMoveToWindow 在该视图上都不触发，
-    // 而本方法（全局透明度）确实在执行（FLEX 里 alpha 0.9 就是证据）—— 借用这个必然触发的入口。
+    // 直播卡片缩放：入口不止一个 —— layoutSubviews 实测**会**触发（2026-10 探针 A 实证），didMoveToWindow 也会；
+    // 但抖音在 cell 复用/重配置时会把 transform 写回去，所以每个入口都要兜（谁最后写谁生效），
+    // 本方法（全局透明度必被调用，FLEX 里 alpha 0.9 就是证据）是其中最可靠的一个。
     if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
         [DYYYUtils applyLiveCardScaleToStack:self];
     }
@@ -12769,63 +12770,25 @@ static Class TagViewClass = nil;
 - (void)layoutSubviews {
     %orig;
 
-    // 首页直播卡片（信息流里的「直播中」卡片）整块缩放。
-    // 缩放作用在每一行（arrangedSubviews）而不是 stack 自身 ——
-    // 因为本类里抖音/上游自己会写 self.transform（预览页那段逻辑），会把 stack 自身的变换覆盖掉；
-    // 行视图是普通视图，用 layer.transform 既不会改变 frame（UIStackView 布局无感知、不会反复叠加），
-    // 也不会被覆盖。每行各自把左边缘钉住，视觉上就是整块一起缩。
-    // 直播卡片（信息流里的「直播中」卡片）中「徽标 + 昵称 + 文案」的整块缩放。
+    // 首页直播卡片（信息流里的「直播中」卡片）中「徽标 + 昵称 + 文案」整块缩放。
+    // 实测收敛为：只对「最内层那个 stack」（直接子视图里含高度 ≤40 的 IESLiveLayoutContainerView 行）
+    // 写 self.transform，外层几个 stack 由 applyLiveCardScaleToStack: 自动排除；变换基准在首次见到时缓存，
+    // 之后都在这份基准上叠加（避免反复缩放）。入口有多个（layoutSubviews / setAlpha: / didMoveToWindow /
+    // 行容器 layoutSubviews），抖音复用时会把 transform 写回去 → 谁最后写谁生效，所以每个入口都要兜。
     // 具体判别与计算见 DYYYUtils applyLiveCardScaleToStack:（只处理目标 stack，其它恢复原状）。
     if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
         [DYYYUtils applyLiveCardScaleToStack:self];
     }
 
-    UIViewController *viewController = [DYYYUtils firstAvailableViewControllerFromView:self];
-
-    if ([viewController isKindOfClass:%c(AWELiveNewPreStreamViewController)]) {
-        const BOOL shouldShiftUp = DYYYGetBool(@"DYYYEnableFullScreen");
-        const CGFloat labelScaleValue = DYYYGetFloat(@"DYYYNicknameScale");
-        const CGFloat targetLabelScale = (labelScaleValue != 0.0) ? MAX(0.01, labelScaleValue) : 1.0;
-        const CGFloat elementScaleValue = DYYYGetFloat(@"DYYYElementScale");
-        const CGFloat targetElementScale = (elementScaleValue != 0.0) ? MAX(0.01, elementScaleValue) : 1.0;
-
-        CGAffineTransform targetTransform = CGAffineTransformIdentity;
-        CGFloat boundsWidth = self.bounds.size.width;
-        CGFloat currentScale = 1.0;
-        CGFloat targetHeight, tx, ty = 0;
-        UIWindow *keyWindow = [DYYYUtils getActiveWindow];
-        if (keyWindow && keyWindow.safeAreaInsets.bottom == 0) {
-            targetHeight = gCurrentTabBarHeight - originalTabBarHeight;
-        } else {
-            targetHeight = gCurrentTabBarHeight;
-        }
-
-        if ([DYYYUtils containsSubviewOfClass:GuideViewClass inContainer:self]) {
-            currentScale = targetLabelScale;
-            tx = 0; // 中对齐
-        } else if ([DYYYUtils containsSubviewOfClass:MuteViewClass inContainer:self]) {
-            currentScale = targetElementScale;
-            tx = (boundsWidth - boundsWidth * currentScale) / 2; // 右对齐
-        } else if ([DYYYUtils containsSubviewOfClass:TagViewClass inContainer:self]) {
-            currentScale = targetLabelScale;
-            tx = (boundsWidth - boundsWidth * currentScale) / -2; // 左对齐
-        }
-
-        NSArray *subviews = [self.subviews copy];
-        for (UIView *view in subviews) {
-            CGFloat viewHeight = view.bounds.size.height;
-            ty += (viewHeight - viewHeight * currentScale) / 2;
-        }
-
-        if (shouldShiftUp) {
-            ty -= targetHeight;
-        }
-        targetTransform = CGAffineTransformMakeTranslation(0, -20);
-
-        if (!CGAffineTransformEqualToTransform(self.transform, targetTransform)) {
-            self.transform = targetTransform;
-        }
-    }
+    // 这里原本有一段「预直播页」处理：用硬编码的 translation(0, -20) 覆盖 stack 的 transform。
+    // 2026-10 按实测日志（dyyy-pre.txt）拆除，依据三条：
+    //   ① 它**确实在跑**：首页那张直播卡片就挂在 AWELiveNewPreStreamViewController 下（探针 A / B1 双命中），
+    //      所以它既不是死代码，影响面也不是"某个没去过的页面"；
+    //   ② 它进入时 transform 已经是写好的缩放值 [0.8, 0, 0, 0.8, -32.32, -74.08]，
+    //      紧接着被它整个覆盖成 (0, -20) —— 即每趟布局一次「我们写好 → 它抹掉」，
+    //      表现就是这张卡片的缩放/位置时好时坏（历史症状：划过去划回来会看到缩放过程、位置还是有问题）；
+    //   ③ 位移现在只由 applyLiveCardScaleToStack:（shiftUp 参数）一处决定，不再有第二个写入者。
+    //   ⚠️ 以后这张卡片整体偏高/偏低，请改 shiftUp 那一处，不要在这里再加 transform 写入。
 }
 
 %end
@@ -13053,8 +13016,9 @@ static Class TagViewClass = nil;
 %hook AWELandscapeFeedEntryView
 
 - (void)setAlpha:(CGFloat)alpha {
-    // 直播卡片缩放：实测 layoutSubviews / didMoveToWindow 在该视图上都不触发，
-    // 而本方法（全局透明度）确实在执行（FLEX 里 alpha 0.9 就是证据）—— 借用这个必然触发的入口。
+    // 直播卡片缩放：入口不止一个 —— layoutSubviews 实测**会**触发（2026-10 探针 A 实证），didMoveToWindow 也会；
+    // 但抖音在 cell 复用/重配置时会把 transform 写回去，所以每个入口都要兜（谁最后写谁生效），
+    // 本方法（全局透明度必被调用，FLEX 里 alpha 0.9 就是证据）是其中最可靠的一个。
     if ([self isKindOfClass:NSClassFromString(@"IESLiveStackView")]) {
         [DYYYUtils applyLiveCardScaleToStack:self];
     }
