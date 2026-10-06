@@ -686,5 +686,72 @@ self.attributedText = dyAttr;   // 高亮 / 段落 / 链接属性全部保留
 > 它的真假取决于这两个类的真实继承关系（`AwemeHeaders.h` 里的声明是猜的，见上条修正），
 > 两种情况都无害；要清得先拿真机 dump 类层级，不划算。
 
+## 二十二、「本地气泡装扮」：把商店里的气泡套到自己发的气泡上（fork74）
+
+**需求**：气泡商店里点开某个气泡 → 详情半屏面板 → 在官方「兑换并装扮」旁加一个「本地装扮」，
+把这张皮**只在本地**套到自己发出去的聊天气泡上（不花火星、不改服务端状态、对方看不到）。
+
+### 抖音的实现机制（8 轮真机探针换来）
+
+| 事实 | 证据 |
+|---|---|
+| 气泡按「**每条消息**自带的 bubbleID」渲染 | `AWEIMMessageBubbleBackgroundComponent - setMsgBubbleID:` 每条消息调一次 |
+| 资源缓存键 = `<bubbleID>_self`（我发的）/ `<bubbleID>_peer`（对方） | `localImageForKey:"7688…_self" → <BDImage {66,54}>` |
+| 图 = 66×54 的九宫格 `BDImage`；布局 = flex dict（`flex_setting` 四元组 + `height` + `text_setting`） | `getCacheFlexSettingWithBubbleID:` 的返回 |
+| **文字颜色在 `getCacheOtherSettingWithBubbleID:` 的 `text_color` 字段，且用裸 id（无后缀）读** | `other = { text_color = "#FFF2CB"; … }`；渲染期间 other 族只被**裸 id** 调用 |
+| 未拥有的气泡，资源也能按 id 拉下来 | 调一次 `AWEIMUserBubbleComponent - tryRequestBubbleImageWithBubbleID:` 后 `<新id>_self` 的图就有了 |
+| 面板是 Lynx 页（`AnnieX.AnnieXNavigationController` + `BDXPopupViewController`），条目数据在 JS 运行时里，原生对象图上拿不到 | KVC 探测只有 `context` / `globalProps` / `params(accessKey)` |
+| 面板里那个气泡的 id / 名字可从**桥接上报事件**精确取 | `BDXBridgeReportAppLogMethod` 的 params：`eventName="bubble_redemption_page_show"` + `bubble_id` + `bubble_name` |
+
+### 实现（fork74）
+
+- `DYYYChatBubbleDress.h/.m`：状态（本地气泡 id/名字持久化、面板事件缓冲、改写判定）+ 面板按钮；
+- `DYYYChatBubbleDressHook.xm`：4 类 Hook —— `AWEIMUserBubbleUtility`（记住我当前气泡 id）、
+  `AWEIMUserBubbleCacheManager`（9 个读取方法做键改写）、`BDXBridgeReportAppLogMethod`（抓面板条目）、
+  `UIViewController`（按钮显隐）；
+- 换皮 = 键改写：命中「我当前气泡 id」的**裸 id 或 `<id>_self`** → 换成本地 id（带降级链）；
+  **`_peer` 一律不动**（对方的气泡不换）；
+- 按钮只在气泡详情面板出现，位置**挤进官方「兑换并装扮」右侧空位**（按"整宽 + 高 26~64 + 下半屏 + 红粉底色"
+  在视图树里找官方按钮；找不到就退回右下角固定位）。
+
+### 可复用的坑（都付过学费）
+
+- ⚠️ **绝不要对 Lynx / BDX 对象做 `object_getIvar`** —— 那类对象里有失效指针，读下去必闪退（第三轮实测）。
+  只用 KVC（异常可捕获）或纯 Foundation 容器遍历；
+- **主线程扫 20 万个类 = 启动卡好几秒**：`objc_getClassList` + 逐类 `class_copyMethodList` 必须丢后台；
+- **改写要看"键的形状"**：同一份设置抖音会用两种键读（`<id>_self` 与**裸 id**），只按后缀匹配会漏掉颜色那条路
+  —— 第七轮"文字颜色还是旧的"就是这么来的；
+- **降级链里塞 `_peer` 会误伤对方气泡**：`<本地id>_peer` 正好被对方气泡的读取命中（第七轮实测 58 次）。
+  只改我发的，就只认 `_self` 与裸 id；
+- **Theos 命名坑**：`X.xm` 经 Logos 会生成 `X.m` —— **不能同时存在 `X.xm` 与手写的 `X.m`**（互相覆盖，
+  表现为链接期 `_OBJC_CLASS_$_X` undefined）。手写类与 Hook 文件必须不同名（本项目用 `…Hook.xm`）；
+- 抓取优先**结构化字段**而不是正则碰运气：`BDXBridgeReportAppLogMethod` 的参数模型可以直接 KVC 取
+  `eventName` / `params`，比在 `description` 里找数字可靠得多（第五轮就是被"日志 id"骗了）。
+
+### 边界与安全
+
+- 只改**本机渲染**：官方侧记录你拥有的仍是原来那个气泡，对方看到的也还是官方皮肤；
+- 抖音改版后若类名/字段变了，任一环读不到即**原样返回官方气泡**（安全降级，不会出现空气泡）；
+- 设置页有总开关「本地气泡装扮」（关掉立即恢复官方气泡），面板按钮再点一下 = 清除本地装扮。
+
+### 面板按钮的最终形态（fork79~fork82 打磨）
+
+- 与官方「兑换并装扮」**并排**：官方那颗压窄到左半边（里面的居中文字同步左移，目标位置与 Lynx 自己居中的结果一致，不会互相打架），
+  本地装扮占右半边，同高同圆角；描边/文字色取**官方按钮自己的底色**（官方绿就绿、红就红）；
+- 按钮文字随状态走：面板里这个气泡**就是**当前装扮的那个 → 显示「恢复装扮」（淡色填充），否则显示「本地装扮」；
+- 只在真面板（`BDXPopup`）且找到官方按钮容器时出现 —— **不做悬浮兜底**（宁可没有按钮，也不漂在面板外面）；
+- Lynx 异步渲染 → 面板打开后**立刻 + 每 0.06 秒**密集重试约 1.5 秒（找到容器后每拍只做一次 frame 比对），
+  之后 2.0/2.6/3.4 秒慢速兜底，让用户几乎看不到"官方按钮先单独出现、再分成两颗"的中间态。
+
+### 另两条踩过的坑（fork78→fork82）
+
+- ⚠️ **布局改写必须幂等**：一开始拿"当前宽度"当基准去算，重试链每跑一轮就把官方按钮再压窄一圈，
+  最后收敛到钳位值（官方 120 + 本地 96，"两颗短条挤在左边"）。正解 = **第一次记下原始几何，之后都从原始值算**，
+  写之前再比对（差值 < 0.5pt 就不写）；
+- ⚠️ **记住的容器要校验归属**：上一个面板的视图可能还被短暂持有，若盲目复用会去压窄上一个面板的按钮 ——
+  必须用 `[container isDescendantOfView:controller.view]` 确认它属于当前面板；
+- 「我当前的官方气泡 id」**不要只依赖 `AWEIMUserBubbleUtility currentUserBubbleID`**（一次启动只调一次）：
+  从 `<某id>_self` 的键里推断并持久化，重启后直接进聊天也能立刻生效（且要排除"本地气泡 id"与"面板里正在看的 id"）。
+
 
 

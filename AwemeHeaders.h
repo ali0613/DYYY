@@ -1976,3 +1976,34 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 // 顶栏选中指示线
 @interface AWEFeedMultiTabSelectedContainerView : UIView
 @end
+
+#pragma mark - 聊天气泡装扮（「本地气泡装扮」用；真机实证，见 FORK.md 第二十二节）
+
+// 我当前的官方气泡 id（currentUserBubbleID）
+@interface AWEIMUserBubbleUtility : NSObject
+- (NSString *)currentUserBubbleID;
+@end
+
+// 气泡资源缓存：键是 "<bubbleID>_self"（我发的）/ "<bubbleID>_peer"（对方）
+// 图片是 BDImage(九宫格)，flex 是布局设置，other 里含 text_color（文字颜色，用裸 id 读）
+@interface AWEIMUserBubbleCacheManager : NSObject
+- (id)localImageForKey:(NSString *)key;
+- (id)memoryImageForKey:(NSString *)key;
+- (id)diskImageForKey:(NSString *)key;
+- (id)getCacheFlexSettingWithBubbleID:(NSString *)bubbleID;
+- (id)getDiskFlexSettingWithBubbleID:(NSString *)bubbleID;
+- (id)getMemoryFlexSettingWithBubbleID:(NSString *)bubbleID;
+- (id)getCacheOtherSettingWithBubbleID:(NSString *)bubbleID;
+- (id)getDiskOtherSettingWithBubbleID:(NSString *)bubbleID;
+- (id)getMemoryOtherBubbleSettingWithBubbleID:(NSString *)bubbleID;
+@end
+
+// 消息列表里的气泡组件：按 id 拉取某个气泡的资源（未拥有的气泡也能拉到）
+@interface AWEIMUserBubbleComponent : NSObject
+- (void)tryRequestBubbleImageWithBubbleID:(NSString *)bubbleID;
+@end
+
+// Lynx 页的上报桥方法：气泡面板会用它的 params 递出 bubble_id / bubble_name
+@interface BDXBridgeReportAppLogMethod : NSObject
+@end
+
