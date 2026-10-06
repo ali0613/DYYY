@@ -376,3 +376,13 @@ B1:预直播分支(IESLiveStackView)     vc=<AWELiveNewPreStreamViewController> 
 `applyLiveCardScaleToStack:`（`shiftUp` 参数）**一处来源**。
 ⚠️ 以后这张卡片整体偏高/偏低，只改 `shiftUp` 那一处，**不要**再往 hook 里加 transform 写入。
 
+**验收结果：位置没有任何变化** —— 这符合预期，而且能用那份日志直接算清楚原因：
+
+`applyLiveCardScaleToStack:` 里是 `CGAffineTransformConcat(平移, 缩放)`，**平移先作用、随后整体被缩放**，
+所以最终 `tx' = tx × 0.8 = −40.4 × 0.8 = −32.32`、`ty' = ty × 0.8 = −92.6 × 0.8 = −74.08`
+（`tx`/`ty` 由 `bounds = 404×926`、`base = identity`、`shiftUp = 0` 算出）—— 与日志里那串
+`[0.8, 0, 0, 0.8, −32.32, −74.08]` **完全吻合**。
+
+结论：**真正最后生效的一直是我们自己的写入**；`-20` 只在布局帧里短暂赢过一次，随即被
+`setAlpha:` / `didMoveToWindow` 那几条入口盖掉。所以删掉它**画面不动**，但"中途把缩放抹掉一帧"的抖动来源消失了。
+
