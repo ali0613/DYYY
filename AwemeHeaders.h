@@ -684,6 +684,10 @@ typedef NS_ENUM(NSUInteger, DYEdgeMode) {
 @property(nonatomic, assign, getter=isHidden) BOOL hidden;
 @end
 
+// 「汽水音乐提醒」推广条（视频底部带"立即安装"的那条；2026-10 钓鱼探针实测的真实类名）
+@interface AWEPlayInteractionDiversionBar : UIView
+@end
+
 @interface AWEIMMessageTabOptPushBannerView : UIView
 @property(nonatomic, strong, readonly) UIView *superview;
 @property(nonatomic, assign, getter=isHidden) BOOL hidden;

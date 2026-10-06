@@ -430,6 +430,58 @@ heal-撤销误写      win={  0.0,  17.0  50.0x84.0}   ← ★自愈命中，撤
 
 > 另外记一条叠加规则：若「进度时长颜色」本身带透明度，最终会再乘一次 0.6（时间属地同样规则，两边一致）。
 
+## 十八、「汽水音乐提醒」条随机漏：靠"钓鱼探针"抓到真实类名与失败原因（fork70 修）
+
+**问题特征**：`%hook AWEBaseElementView -layoutSubviews` 里那句「子视图类名含 `DiversionBar` → `hidden = YES`」
+**有时不生效**，而且**只在首页随机刷到时才复现**，没法主动重现。
+
+**办法：改成"钓鱼"（被动捕获），不用复现** —— 在三个必经入口布只读探针，命中即记录并**自动截图**：
+
+| 入口 | 判据 |
+|---|---|
+| `AWEBaseElementView -layoutSubviews` | 类名 / 文字 |
+| `UILabel -setText:`（**必须扩展已有 hook，不能再开一个 `%hook UILabel`**，否则 redefinition 编译失败） | 文字含「汽水音乐 / 懂你想听」 |
+| `UIView -didMoveToWindow` | 只查类名（热路径保持便宜） |
+
+命中时写 `tmp/dyyy-soda.txt`（**追加、不截断** —— 随机问题必须跨"抖音重启"保留）+ 抓 `tmp/dyyy-soda-N.png` 截图；
+另外记录候选类的 `setHidden:` 调用留痕，用来区分「**没匹配到**」与「**匹配到了又被显示回来**」。
+
+**抓到的结论（`dyyy-soda.txt`）**：
+
+```
+=== #2 [src=UIView.didMoveToWindow] hit=<AWEPlayInteractionDiversionBar> hid=0
+    ↑1 AWEBaseElementView … | ↑2 AWEElementStackView …            ← 父视图确实是元素层
+[setHidden] AWEPlayInteractionDiversionBar hidden=0 …             ← 抖音把它「显示」
+[setHidden] AWEPlayInteractionDiversionBar hidden=1 …             ← 之后又被「隐藏」
+```
+
+1. 真实类名 = `AWEPlayInteractionDiversionBar` —— 也就是说 **`containsString:@"DiversionBar"` 一直匹配得上，问题不是名字猜错**；
+2. 父视图确实是 `AWEBaseElementView`、再上是 `AWEElementStackView` —— 原方案方向没错；
+3. **失败原因是时机**：抖音会**反复**调 `setHidden:NO` 把它显示回来，而我们只在"element 的那一趟 layoutSubviews"
+   里写一次 `hidden = YES`，那一刻之后**没有任何入口纠正**（该 element 未必再布局）→ 被显示回来就**永久露头**；
+4. 它还横跨"父 element **未布局 0×0** / **已布局 428×40**"两种出现时机，我们只兜住了后者。
+
+**修法（fork70）**：按本仓库已验证过的解法（同 `AWEFeedAnchorContainerView`）**接管 `setHidden:`**：
+
+```objc
+%hook AWEPlayInteractionDiversionBar
+- (void)setHidden:(BOOL)hidden { %orig(开关注解 ? YES : hidden); }   // 任何"想显示"都改成隐藏
+- (void)didMoveToWindow { %orig; if (开关) { self.hidden = YES; … } } // 进窗口就按下去，不给闪一帧的机会
+- (void)layoutSubviews { %orig; if (开关) { self.hidden = YES; … } }  // 幂等再兜一次
+%end
+```
+
+**外加"塌行"避免留白**：隐藏条形**不会**让它那一行的高度消失（UIStackView 里只有**行本身**被隐藏才会塌），
+所以 `DYYYUtils hideDiversionBarRowIfNeeded:` 在**「这一行除 DiversionBar 外没有别的可见内容」**这一保守条件下，
+连父 `AWEBaseElementView` 一起 `hidden = YES` → 不留空白且不误伤正常元素行。
+
+**可复用教训**：
+
+- **随机出现的 UI 问题 → 布"钓鱼"探针 + 命中自动截图**，比反复手动复现高效得多；日志要**追加不截断**；
+- 判"没匹配到"还是"被改回去"，就**记录对方的 `setHidden:` 调用**（一行留痕即可定位）；
+- **一次性写入的 `hidden` 同样会被抖音改回去** —— 和第十六节 `transform` 那条是同一类问题：
+  「我们写一次就不管」= 迟早被覆盖，正解是**接管 setter**（`setHidden:`）。
+
 **验收结果：位置没有任何变化** —— 这符合预期，而且能用那份日志直接算清楚原因：
 
 `applyLiveCardScaleToStack:` 里是 `CGAffineTransformConcat(平移, 缩放)`，**平移先作用、随后整体被缩放**，

@@ -9696,18 +9696,55 @@ static NSHashTable *processedParentViews = nil;
 	// 页面上的缩放是由别处实现的，这一段只是叠加了第二层（造成"缩过了"与"偏右"），故移除。
 	// 保留读取，供下方「右侧栏上移」等逻辑无关联使用的地方不再需要。
 
-	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条，FLEX 里类名渲染成 AWAPlayInteractionDiversionBar）。
-	// 挂既有开关「隐藏去汽水听」DYYYHideQuqishuiting，不新增设置项；
-	// 类名首字母不确定，所以按「类名包含 DiversionBar」匹配。
+	// 隐藏「汽水音乐提醒」条（视频底部带"立即安装"的那条）。
+	// 实测真实类名 = AWEPlayInteractionDiversionBar，父视图 AWEBaseElementView、再上是 AWEElementStackView。
+	// 挂既有开关「隐藏去汽水听」DYYYHideQuqishuiting，不新增设置项。
+	// ⚠️ 这里只是"兜一层"：真正管用的是下面 %hook AWEPlayInteractionDiversionBar 里对 setHidden: 的接管
+	//   （实测抖音会反复把它显示回来，只在这里写一次会随机漏，原因见该 hook 的注释）。
 	if (DYYYGetBool(@"DYYYHideQuqishuiting")) {
 		for (UIView *dySub in self.subviews) {
 			if ([NSStringFromClass([dySub class]) containsString:@"DiversionBar"]) {
 				dySub.hidden = YES;
+				// 条形隐藏后这一行的高度还在 → 把"整行只有它"的行也塌掉，避免底部留白
+				[DYYYUtils hideDiversionBarRowIfNeeded:dySub];
 			}
 		}
 	}
 
 	[DYYYUtils applyRightColumnShiftIfNeeded:self];
+}
+
+%end
+
+// 「隐藏去汽水听」：视频底部那条「汽水音乐 | 随时随地懂你想听 | 立即安装」推广条。
+// 实测（2026-10 钓鱼探针 dyyy-soda.txt）真实类名 = AWEPlayInteractionDiversionBar，
+// 父视图 AWEBaseElementView、再上是 AWEElementStackView —— 注意：**类名一直是能匹配上的**，
+// 之所以会"随机漏"，是因为：
+//   ① 抖音会在之后反复调 setHidden:NO 把它显示回来；而我们原来只在「element 的那一趟 layoutSubviews」
+//      里写一次 hidden=YES，那一刻之后没有任何入口纠正 → 被显示回来就永久露头（该 element 未必再布局）；
+//   ② 它出现的时机横跨"父 element 还没布局（0×0）/ 已布局（428×40）"两种，我们只兜住了后者。
+// 所以按本仓库已验证过的解法（同 %hook AWEFeedAnchorContainerView）：**接管 setHidden:**，
+// 任何"想让它显示"的调用都改成隐藏；再在"进窗口"和"布局"各兜一次（幂等、不闪一帧）。
+%hook AWEPlayInteractionDiversionBar
+
+- (void)setHidden:(BOOL)hidden {
+	%orig(DYYYGetBool(@"DYYYHideQuqishuiting") ? YES : hidden);
+}
+
+- (void)didMoveToWindow {
+	%orig;
+	if (DYYYGetBool(@"DYYYHideQuqishuiting")) {
+		self.hidden = YES;
+		[DYYYUtils hideDiversionBarRowIfNeeded:self];
+	}
+}
+
+- (void)layoutSubviews {
+	%orig;
+	if (DYYYGetBool(@"DYYYHideQuqishuiting")) {
+		self.hidden = YES;
+		[DYYYUtils hideDiversionBarRowIfNeeded:self];
+	}
 }
 
 %end

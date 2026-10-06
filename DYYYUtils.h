@@ -344,6 +344,13 @@ NS_ASSUME_NONNULL_BEGIN
  */
 + (void)applyRightColumnShiftIfNeeded:(UIView *)element;
 
+/**
+ * 「隐藏去汽水听」：把汽水音乐推广条**所在整行**也一起隐藏。
+ * 只在该行里除 DiversionBar 之外没有别的可见内容时才动父视图 ——
+ * 因为隐藏条形本身不会让这一行的高度消失（UIStackView 里隐藏的**行**才会塌），不处理就会在底部留一条空白。
+ */
++ (void)hideDiversionBarRowIfNeeded:(UIView *)bar;
+
 + (void)applyBoldFontRecursivelyInView:(UIView *)root;
 
 + (void)dumpAllWindowsViewTreeToFile:(NSString *)filePath;

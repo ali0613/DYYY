@@ -2481,6 +2481,29 @@ static CGFloat gDYYYLiveCardShiftUp = 0.0;
 //   ② 给写过的元素打标，之后判为"不是右栏元素"时，只要 transform 逐位等于我们当初写的值，就撤销它（自愈）。
 static BOOL gDYYYRightColumnShiftApplying = NO;
 
++ (void)hideDiversionBarRowIfNeeded:(UIView *)bar {
+    if (!bar || !DYYYGetBool(@"DYYYHideQuqishuiting")) {
+        return;
+    }
+    UIView *row = bar.superview;
+    if (!row || ![NSStringFromClass([row class]) containsString:@"AWEBaseElementView"]) {
+        return;
+    }
+    // 保守条件：这一行里只要还有别的"看得见"的内容，就绝不动父视图（免得误伤正常元素行）。
+    for (UIView *sibling in row.subviews) {
+        if ([NSStringFromClass([sibling class]) containsString:@"DiversionBar"]) {
+            continue;
+        }
+        if (sibling.hidden || sibling.alpha <= 0.01) {
+            continue;
+        }
+        return;
+    }
+    if (!row.hidden) {
+        row.hidden = YES;   // 隐藏的"行"在 UIStackView 里会被塌掉 → 不留空白
+    }
+}
+
 + (void)applyRightColumnShiftIfNeeded:(UIView *)element {
     if (!element) {
         return;
